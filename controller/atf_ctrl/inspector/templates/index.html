@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ATF Inspector</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'SF Mono', 'Menlo', monospace; background: #0f1117; color: #e2e8f0; padding: 24px; }
+    h1 { font-size: 18px; font-weight: 600; color: #7dd3fc; margin-bottom: 4px; }
+    .subtitle { font-size: 12px; color: #64748b; margin-bottom: 24px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      text-align: left; padding: 8px 12px;
+      border-bottom: 1px solid #1e293b;
+      color: #94a3b8; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+    }
+    tbody tr { border-bottom: 1px solid #1e293b; transition: background .1s; }
+    tbody tr:hover { background: #1e293b; }
+    td { padding: 10px 12px; }
+    .online  { color: #4ade80; }
+    .offline { color: #475569; }
+    .state   { color: #fbbf24; font-size: 11px; letter-spacing: .05em; }
+    .ntp     { color: #818cf8; }
+    .platform { color: #94a3b8; font-size: 11px; }
+    .agent-id { color: #e2e8f0; font-weight: 500; }
+    #count { font-size: 12px; color: #64748b; margin-top: 16px; }
+    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .dot.online  { background: #4ade80; box-shadow: 0 0 6px #4ade80; }
+    .dot.offline { background: #334155; }
+  </style>
+</head>
+<body>
+  <h1>ATF Validator — Environment Status</h1>
+  <div class="subtitle">Live agent dashboard · auto-refreshes via SSE</div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Status</th>
+        <th>Agent ID</th>
+        <th>State</th>
+        <th>NTP Offset</th>
+        <th>Platform</th>
+      </tr>
+    </thead>
+    <tbody id="agent-table">
+      {% for a in agents %}
+      <tr>
+        <td>
+          <span class="dot {{ 'online' if a.is_online else 'offline' }}"></span>
+          <span class="{{ 'online' if a.is_online else 'offline' }}">{{ 'online' if a.is_online else 'offline' }}</span>
+        </td>
+        <td class="agent-id">{{ a.agent_id }}</td>
+        <td class="state">{{ a.state }}</td>
+        <td class="ntp">{{ a.ntp_display }}</td>
+        <td class="platform">{{ a.platform }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" style="color:#475569;padding:20px 12px">No agents detected yet…</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div id="count"></div>
+
+  <script>
+    const tbody = document.getElementById('agent-table');
+    const count = document.getElementById('count');
+    const es = new EventSource('/events');
+
+    es.onmessage = (e) => {
+      const agents = JSON.parse(e.data);
+      if (agents.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="color:#475569;padding:20px 12px">No agents detected yet…</td></tr>';
+        count.textContent = '';
+        return;
+      }
+      tbody.innerHTML = agents.map(a => `
+        <tr>
+          <td>
+            <span class="dot ${a.online ? 'online' : 'offline'}"></span>
+            <span class="${a.online ? 'online' : 'offline'}">${a.online ? 'online' : 'offline'}</span>
+          </td>
+          <td class="agent-id">${a.agent_id}</td>
+          <td class="state">${a.state}</td>
+          <td class="ntp">${a.ntp_display}</td>
+          <td class="platform">${a.platform}</td>
+        </tr>`).join('');
+      const online = agents.filter(a => a.online).length;
+      count.textContent = `${online} / ${agents.length} agents online`;
+    };
+
+    es.onerror = () => count.textContent = 'SSE connection lost — retrying…';
+  </script>
+</body>
+</html>

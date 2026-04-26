@@ -28,6 +28,7 @@ dependencies = [
 atf-run = "controller.atf_ctrl.cli:run"
 atf-status = "controller.atf_ctrl.cli:status"
 atf-agent = "agent.atf_agent.main:main"
+atf-inspector = "controller.atf_ctrl.inspector.server:main"
 
 [project.optional-dependencies]
 dev = [
