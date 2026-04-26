@@ -81,6 +81,15 @@ brew install --cask docker
 
 Open **Docker.app** and wait until the menu bar whale icon shows "Docker Desktop is running".
 
+### 6. Mosquitto CLI tools (for testing)
+
+```bash
+brew install mosquitto
+```
+
+These provide `mosquitto_pub` and `mosquitto_sub` for manual MQTT testing.
+> Note: this installs the CLI tools only — the broker itself runs inside Docker.
+
 ---
 
 ## Project Setup
@@ -119,9 +128,22 @@ docker compose version
 
 ```bash
 docker compose up -d
-curl localhost:8086/health   # InfluxDB → {"status":"pass"}
-# Grafana → http://localhost:3000 (admin/admin)
-# Mosquitto → localhost:1883
+```
+
+Verify all three services:
+```bash
+# InfluxDB
+curl localhost:8086/health
+# Expected: {"status":"pass", ...}
+
+# Mosquitto pub/sub roundtrip
+mosquitto_sub -h localhost -p 1883 -t "atf/test" -C 1 &
+mosquitto_pub -h localhost -p 1883 -t "atf/test" -m "hello-atf"
+# Expected output: hello-atf
+
+# Grafana
+open http://localhost:3000
+# Login: admin / atf-grafana-2026
 ```
 
 ---

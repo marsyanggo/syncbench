@@ -1,6 +1,6 @@
 # Project Targets — ATF Validator
 
-_Last updated: 2026-04-25 23:16 PDT_
+_Last updated: 2026-04-26 00:10 PDT_
 
 ---
 
@@ -26,12 +26,12 @@ _Last updated: 2026-04-25 23:16 PDT_
 
 - [x] Step 0-a：git init + repo 骨架建立（LICENSE、README、WORKLOG、design_spec）
 - [x] Step 0-b：push 到 GitHub private repo，設定 remote origin
-- [ ] Step 0-c：建立 `pyproject.toml`（paho-mqtt, fastapi, uvicorn, pydantic, influxdb-client）
+- [x] Step 0-c：建立 `pyproject.toml`（paho-mqtt, fastapi, uvicorn, pydantic, influxdb-client）+ uv sync 通過
 
-- [ ] Step 1：建立 `docker-compose.yml`（Mosquitto port 1883、InfluxDB port 8086、Grafana port 3000）
-- [ ] Step 1：`docker compose up -d` → 確認三服務互通（`curl localhost:8086/health` 回 OK）
-- [ ] Step 1：Mosquitto 套用 spec §5.8 設定（allow_anonymous、persistence、log）
-- [ ] Step 1：InfluxDB 建立 bucket `atf_metrics`，Grafana datasource 指向 InfluxDB
+- [x] Step 1：建立 `docker-compose.yml`（Mosquitto port 1883、InfluxDB port 8086、Grafana port 3000）
+- [x] Step 1：`docker compose up -d` → 確認三服務互通（`curl localhost:8086/health` 回 OK）
+- [x] Step 1：Mosquitto 套用 spec §5.8 設定（allow_anonymous、persistence、log）
+- [x] Step 1：InfluxDB 建立 bucket `atf_metrics`，Grafana datasource 指向 InfluxDB
 
 - [ ] Step 2：建立 `controller/atf_ctrl/mqtt_bus.py`（`MQTTBus` class）
 - [ ] Step 2：實作 `connect()`（含 LWT 參數）、`publish()`（自動注入 envelope: v/ts/msg_id）、`subscribe()`、`loop_forever()`
