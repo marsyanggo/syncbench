@@ -1,6 +1,6 @@
 # Project Targets — ATF Validator
 
-_Last updated: 2026-04-26 00:40 PDT_
+_Last updated: 2026-04-26 01:20 PDT_
 
 ---
 
@@ -57,17 +57,38 @@ _Last updated: 2026-04-26 00:40 PDT_
 
 ## Goal: Week 2 — 單 STA 測試端到端
 
-> `atf-run 00_smoke_test.yaml` 一條指令能跑完整流程
+> `atf-run 00_smoke_test.yaml` 一條指令能跑完整流程（ATF 先不 enable，專注跑通 pipeline）
 
-### Sub-tasks
+### 硬體線（需要 RPi）
 
-- [ ] 寫 `iperf3.py` runner（JSON output 解析 + 1Hz throughput 回報）
-- [x] OpenWrt AP 確認型號：ASUS AX4200（MT7986A Filogic 830，mt76 driver，mac80211）
-- [ ] hostapd 設定：airtime_mode=2，驗證 ATF 生效（`iw phy phy0 info | grep airtime`）
-- [ ] 寫 `scenarios/loader.py`，能 load YAML、validate schema
-- [ ] Controller 實作 prepare / start_at / stop 最小流程
-- [ ] Agent 實作 capability collector（L1 連接層 + L4 軟體層先做）→ Inspector 顯示
-- [ ] 跑 `00_smoke_test.yaml`：1 台 STA 連 AP，跑 30 秒 iperf3 完整流程
+- [ ] A1：燒 RPi OS Lite 64-bit（bookworm）— Raspberry Pi Imager，填 hostname/SSH/Wi-Fi
+- [ ] A2：RPi 連上 AX4200 Wi-Fi，SSH 可進
+- [ ] A3：RPi 安裝 iperf3 + chrony + iw + uv + Python 3.11
+- [ ] A4：clone repo + `uv sync`，部署 agent 程式碼
+- [ ] A5：`uv run atf-agent --broker 192.168.1.100 --agent-id rpi-sta-01` → Inspector 顯示上線
+
+### 軟體線（Mac，可立即開始）
+
+- [ ] B1：`agent/atf_agent/traffic/iperf3.py` — 包裝 iperf3 CLI，每秒 yield `{ts, throughput_mbps, retransmits, lost_pct}`
+- [ ] B1：本機 `iperf3 -s` + runner 解析輸出驗證通過
+
+- [ ] B2：`controller/atf_ctrl/scenarios/models.py` — Pydantic models（Scenario, StationConfig, TrafficConfig, PreflightConfig）
+- [ ] B3：`controller/atf_ctrl/scenarios/loader.py` — `load(yaml_path)` + extends deep merge
+- [ ] B3：建立 `scenarios/_base/normal.yaml` + `scenarios/00_smoke_test.yaml`
+- [ ] B3：load 00_smoke_test.yaml 驗證通過
+
+- [ ] B4：`controller/atf_ctrl/orchestrator.py` — prepare → 等 ack → start_at（now+5s）→ 等 duration → stop → collect results
+- [ ] B4：1 台 agent 收到 prepare → 回 ack → 收到 start_at 驗證通過
+
+- [ ] B5：`controller/atf_ctrl/cli.py` — `atf-run <scenario>` CLI entry point
+
+### 合體驗收
+
+- [x] OpenWrt AP 確認型號：ASUS AX4200（MT7986A Filogic 830，mt76 driver）
+- [ ] hostapd 確認 ATF 介面存在（`iw phy phy0 info | grep airtime`，本次先不 enable）
+- [ ] Mac mini 跑 `iperf3 -s`，RPi 作為 iperf3 client 連 AP
+- [ ] `atf-run scenarios/00_smoke_test.yaml` 一條指令跑完整流程（30 秒）
+- [ ] Inspector 顯示 rpi-sta-01 state: RUNNING → REPORTING → IDLE
 
 ---
 
