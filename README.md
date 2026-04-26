@@ -24,6 +24,16 @@ This framework validates IEEE 802.11 standard ATF behavior across multiple stati
 4. Sync precision: STA start-time jitter measured < 100 ms
 5. Reproducibility: re-runnable within 5 minutes of system restart
 
+## Getting Started
+
+See [docs/development-setup.md](docs/development-setup.md) for full prerequisites and setup instructions.
+
+**Quick summary of required tools:**
+- Homebrew + gnupg + pinentry-mac
+- SSH key + GPG key (configured in GitHub)
+- uv (Python package manager) + Python 3.11
+- Docker Desktop
+
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE)
