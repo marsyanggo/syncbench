@@ -1,0 +1,46 @@
+services:
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: atf-mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./deploy/mosquitto/config:/mosquitto/config
+      - ./deploy/mosquitto/data:/mosquitto/data
+      - ./deploy/mosquitto/log:/mosquitto/log
+    restart: unless-stopped
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: atf-influxdb
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: atf-admin-2026
+      DOCKER_INFLUXDB_INIT_ORG: atf
+      DOCKER_INFLUXDB_INIT_BUCKET: atf_metrics
+      DOCKER_INFLUXDB_INIT_RETENTION: 30d
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: atf-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: atf-grafana-2026
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./deploy/grafana/dashboards:/etc/grafana/provisioning/dashboards
+    depends_on:
+      - influxdb
+    restart: unless-stopped
+
+volumes:
+  influxdb_data:
+  grafana_data:
