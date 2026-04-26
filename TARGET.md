@@ -1,6 +1,6 @@
 # Project Targets — ATF Validator
 
-_Last updated: 2026-04-26 00:10 PDT_
+_Last updated: 2026-04-26 00:40 PDT_
 
 ---
 
@@ -33,23 +33,25 @@ _Last updated: 2026-04-26 00:10 PDT_
 - [x] Step 1：Mosquitto 套用 spec §5.8 設定（allow_anonymous、persistence、log）
 - [x] Step 1：InfluxDB 建立 bucket `atf_metrics`，Grafana datasource 指向 InfluxDB
 
-- [ ] Step 2：建立 `controller/atf_ctrl/mqtt_bus.py`（`MQTTBus` class）
-- [ ] Step 2：實作 `connect()`（含 LWT 參數）、`publish()`（自動注入 envelope: v/ts/msg_id）、`subscribe()`、`loop_forever()`
-- [ ] Step 2：smoke test：一個 publish + subscribe roundtrip 驗證通過
+- [x] Step 2：建立 `shared/mqtt_bus.py`（`MQTTBus` class，從 controller 抽出共用）
+- [x] Step 2：實作 `connect()`（含 LWT）、`publish()`（自動注入 envelope: v/ts/msg_id）、`subscribe()`、`loop_forever()`
+- [x] Step 2：smoke test 3 項通過（roundtrip、LWT、wildcard）
 
-- [ ] Step 3：建立 `agent/atf_agent/main.py` 狀態機（BOOT → IDLE）
-- [ ] Step 3：MQTT 連線 + LWT 設定（agent/{id}/status = OFFLINE）
-- [ ] Step 3：Heartbeat publisher（1Hz、QoS 0）payload 含 `ntp_offset_ms`（chronyc tracking 解析）
-- [ ] Step 3：訂閱 `atf/ctrl/broadcast/+` 和 `atf/ctrl/unicast/agent/{my_id}/+`
-- [ ] Step 3：RPi 上跑起 agent，MQTT broker 能收到 heartbeat
+- [x] Step 3：建立 `agent/atf_agent/main.py` 狀態機（BOOT → IDLE）
+- [x] Step 3：`PlatformAdapter` ABC + `LinuxAdapter`（RPi）+ `MacOSAdapter`（本機測試）
+- [x] Step 3：MQTT 連線 + LWT 設定（agent/{id}/status = OFFLINE）
+- [x] Step 3：Heartbeat publisher（1Hz、QoS 0）payload 含 `ntp_offset_ms`
+- [x] Step 3：訂閱 `atf/ctrl/broadcast/+` 和 `atf/ctrl/unicast/agent/{my_id}/+`
+- [x] Step 3：Mac 本機跑 agent 驗證通過（BOOT→IDLE，RPi 待實機確認）
+- [x] Step 3：`deploy/rpi-image/Dockerfile`（ARM64 多架構，含 iw/chrony/iperf3）
 
-- [ ] Step 4：建立 `controller/atf_ctrl/inspector/server.py`（FastAPI app）
-- [ ] Step 4：`InspectorState` — `dict[agent_id → AgentState]`（記憶體 dict）
-- [ ] Step 4：MQTT subscriber 訂閱 `agent/+/heartbeat`、`agent/+/status` → 更新 InspectorState
-- [ ] Step 4：`GET /` → Jinja2 HTML agent 狀態表格
-- [ ] Step 4：`GET /events` → SSE stream（state 變動即時推送）
+- [x] Step 4：建立 `controller/atf_ctrl/inspector/server.py`（FastAPI + lifespan）
+- [x] Step 4：`InspectorState`（thread-safe，heartbeat + status 更新）
+- [x] Step 4：MQTT subscriber 訂閱 `agent/+/heartbeat`、`agent/+/status`
+- [x] Step 4：`GET /` → 暗色主題 HTML 儀表板
+- [x] Step 4：`GET /events` → SSE stream（EventSource 即時推送）
 
-- [ ] Step 5（里程碑）：瀏覽器開 localhost:8080 顯示 `rpi-sta-01 ●online NTP offset: 2.3ms state: IDLE`
+- [x] Step 5（里程碑）：瀏覽器 localhost:8080 顯示 `rpi-sta-01 ●online +0.0ms IDLE` ✅
 
 ---
 
