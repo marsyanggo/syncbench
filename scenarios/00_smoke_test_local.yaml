@@ -1,0 +1,17 @@
+extends: _base/normal.yaml
+
+name: "Smoke Test — Local (Mac)"
+description: "Same as 00_smoke_test but iperf3 server = localhost for Mac-only testing"
+duration_sec: 10
+
+preflight:
+  expected_agents: ["rpi-sta-01"]
+  software:
+    ntp_synced_required: false   # Mac uses timed, not chronyc
+
+stations:
+  - node: rpi-sta-01
+    traffic:
+      type: iperf3_tcp
+      server: "localhost"
+      port: 5201
