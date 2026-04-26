@@ -1,0 +1,8 @@
+# Base scenario: standard preflight thresholds
+preflight:
+  expected_agents: []
+  software:
+    ntp_synced_required: true
+    max_ntp_offset_ms: 100.0
+    max_mqtt_rtt_ms: 200.0
+    min_cpu_idle_pct: 50.0

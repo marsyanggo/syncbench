@@ -1,0 +1,18 @@
+extends: _base/normal.yaml
+
+name: "Smoke Test — Single STA"
+description: "1 STA, 30s TCP iperf3, verify end-to-end pipeline (ATF disabled)"
+duration_sec: 30
+
+preflight:
+  expected_agents: ["rpi-sta-01"]
+  software:
+    ntp_synced_required: true
+    max_ntp_offset_ms: 100.0
+
+stations:
+  - node: rpi-sta-01
+    traffic:
+      type: iperf3_tcp
+      server: "192.168.1.100"
+      port: 5201

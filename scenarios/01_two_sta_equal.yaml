@@ -1,0 +1,18 @@
+extends: _base/normal.yaml
+
+name: "Two STA Equal Throughput"
+description: "2 STA competing equally, verify Jain's Fairness Index > 0.95"
+duration_sec: 60
+
+preflight:
+  expected_agents: ["rpi-sta-01", "rpi-sta-02"]
+
+stations:
+  - node: rpi-sta-01
+    traffic:
+      type: iperf3_tcp
+      server: "192.168.1.100"
+  - node: rpi-sta-02
+    traffic:
+      type: iperf3_tcp
+      server: "192.168.1.100"
