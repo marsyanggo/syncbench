@@ -27,6 +27,7 @@ dependencies = [
 [project.scripts]
 atf-run = "controller.atf_ctrl.cli:run"
 atf-status = "controller.atf_ctrl.cli:status"
+atf-agent = "agent.atf_agent.main:main"
 
 [project.optional-dependencies]
 dev = [
@@ -49,4 +50,4 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["controller", "agent", "ap"]
+packages = ["controller", "agent", "ap", "shared"]
