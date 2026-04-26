@@ -62,7 +62,8 @@ _Last updated: 2026-04-26 00:40 PDT_
 ### Sub-tasks
 
 - [ ] 寫 `iperf3.py` runner（JSON output 解析 + 1Hz throughput 回報）
-- [ ] OpenWrt AP 確認型號並設好 hostapd 配置
+- [x] OpenWrt AP 確認型號：ASUS AX4200（MT7986A Filogic 830，mt76 driver，mac80211）
+- [ ] hostapd 設定：airtime_mode=2，驗證 ATF 生效（`iw phy phy0 info | grep airtime`）
 - [ ] 寫 `scenarios/loader.py`，能 load YAML、validate schema
 - [ ] Controller 實作 prepare / start_at / stop 最小流程
 - [ ] Agent 實作 capability collector（L1 連接層 + L4 軟體層先做）→ Inspector 顯示
