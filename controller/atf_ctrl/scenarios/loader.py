@@ -20,7 +20,11 @@ def load(path: str | Path) -> Scenario:
     """
     path = Path(path)
     if not path.is_absolute():
-        path = _SCENARIOS_DIR / path
+        # Accept both "00_smoke_test.yaml" and "scenarios/00_smoke_test.yaml"
+        candidate = _SCENARIOS_DIR / path
+        if not candidate.exists() and (_SCENARIOS_DIR / path.name).exists():
+            candidate = _SCENARIOS_DIR / path.name
+        path = candidate
 
     raw = _read_yaml(path)
 
