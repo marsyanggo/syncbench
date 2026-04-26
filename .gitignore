@@ -1,0 +1,23 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# uv
+uv.lock
+
+# macOS
+.DS_Store
+
+# Data / reports (generated at runtime)
+data/
+reports/
+
+# Secrets (never commit)
+.env
+*.pem

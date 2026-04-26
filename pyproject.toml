@@ -1,0 +1,52 @@
+[project]
+name = "atf-validator"
+version = "0.1.0"
+description = "Wi-Fi Airtime Fairness validation framework for IEEE 802.11 networks"
+authors = [{ name = "Mars Yang", email = "marsyanggo@gmail.com" }]
+license = { text = "Apache-2.0" }
+readme = "README.md"
+requires-python = ">=3.11"
+
+dependencies = [
+    # MQTT
+    "paho-mqtt>=2.1.0",
+    # Web / Inspector UI
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "jinja2>=3.1.0",
+    # Data validation
+    "pydantic>=2.9.0",
+    # InfluxDB
+    "influxdb-client>=1.47.0",
+    # Utilities
+    "python-ulid>=3.0.0",
+    "pyyaml>=6.0.2",
+    "aiofiles>=24.1.0",
+]
+
+[project.scripts]
+atf-run = "controller.atf_ctrl.cli:run"
+atf-status = "controller.atf_ctrl.cli:status"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "httpx>=0.28.0",
+    "pip-licenses>=5.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "httpx>=0.28.0",
+    "pip-licenses>=5.0.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["controller", "agent", "ap"]

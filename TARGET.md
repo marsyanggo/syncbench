@@ -1,6 +1,6 @@
 # Project Targets — ATF Validator
 
-_Last updated: 2026-04-25 22:16 PDT_
+_Last updated: 2026-04-25 23:16 PDT_
 
 ---
 
@@ -24,11 +24,32 @@ _Last updated: 2026-04-25 22:16 PDT_
 
 ### Sub-tasks
 
-- [ ] docker-compose 起 Mosquitto + InfluxDB + Grafana，確認三者互通
-- [ ] 寫 `mqtt_bus.py`（controller / agent 共用基礎模組）
-- [ ] 一台 RPi 燒好 image，跑起 agent，能 publish heartbeat 到 broker
-- [ ] Inspector server skeleton（空頁面 + state store 框架）
-- [ ] Controller 能接收 heartbeat 並在 Inspector UI 顯示 agent 狀態
+- [x] Step 0-a：git init + repo 骨架建立（LICENSE、README、WORKLOG、design_spec）
+- [x] Step 0-b：push 到 GitHub private repo，設定 remote origin
+- [ ] Step 0-c：建立 `pyproject.toml`（paho-mqtt, fastapi, uvicorn, pydantic, influxdb-client）
+
+- [ ] Step 1：建立 `docker-compose.yml`（Mosquitto port 1883、InfluxDB port 8086、Grafana port 3000）
+- [ ] Step 1：`docker compose up -d` → 確認三服務互通（`curl localhost:8086/health` 回 OK）
+- [ ] Step 1：Mosquitto 套用 spec §5.8 設定（allow_anonymous、persistence、log）
+- [ ] Step 1：InfluxDB 建立 bucket `atf_metrics`，Grafana datasource 指向 InfluxDB
+
+- [ ] Step 2：建立 `controller/atf_ctrl/mqtt_bus.py`（`MQTTBus` class）
+- [ ] Step 2：實作 `connect()`（含 LWT 參數）、`publish()`（自動注入 envelope: v/ts/msg_id）、`subscribe()`、`loop_forever()`
+- [ ] Step 2：smoke test：一個 publish + subscribe roundtrip 驗證通過
+
+- [ ] Step 3：建立 `agent/atf_agent/main.py` 狀態機（BOOT → IDLE）
+- [ ] Step 3：MQTT 連線 + LWT 設定（agent/{id}/status = OFFLINE）
+- [ ] Step 3：Heartbeat publisher（1Hz、QoS 0）payload 含 `ntp_offset_ms`（chronyc tracking 解析）
+- [ ] Step 3：訂閱 `atf/ctrl/broadcast/+` 和 `atf/ctrl/unicast/agent/{my_id}/+`
+- [ ] Step 3：RPi 上跑起 agent，MQTT broker 能收到 heartbeat
+
+- [ ] Step 4：建立 `controller/atf_ctrl/inspector/server.py`（FastAPI app）
+- [ ] Step 4：`InspectorState` — `dict[agent_id → AgentState]`（記憶體 dict）
+- [ ] Step 4：MQTT subscriber 訂閱 `agent/+/heartbeat`、`agent/+/status` → 更新 InspectorState
+- [ ] Step 4：`GET /` → Jinja2 HTML agent 狀態表格
+- [ ] Step 4：`GET /events` → SSE stream（state 變動即時推送）
+
+- [ ] Step 5（里程碑）：瀏覽器開 localhost:8080 顯示 `rpi-sta-01 ●online NTP offset: 2.3ms state: IDLE`
 
 ---
 
@@ -86,5 +107,13 @@ _Last updated: 2026-04-25 22:16 PDT_
 ### Sub-tasks
 
 - [ ] 諮詢加州執業智財/僱傭律師（California Labor Code §2870 風險評估）
-- [ ] 確認所有開發工作在私人時間、私人設備上完成
+- [x] 確認所有開發工作在私人時間、私人設備上完成（Mac mini 私人設備，週六晚上）
 - [x] 建立開發日誌（時間戳記 + 使用設備記錄）
+- [x] 安裝開發工具：Homebrew + gnupg + pinentry-mac
+- [x] 設定 git identity（personal email + GPG signing key 55B37F93D54FF60A）
+- [x] 產生 SSH key（id_ed25519_personal）+ 上傳至 GitHub
+- [x] 產生 GPG key + 上傳至 GitHub（Verified commits）
+- [x] 建立 GitHub personal private repo（marsyanggo/atf-validator）
+- [x] Initial commit：GPG signed independence 宣告書（commit f50c101）
+- [x] 建立 Apache 2.0 LICENSE（Copyright 2026 Mars Yang）
+- [x] 建立 README.md（定位錨點：platform-agnostic ATF validation framework）
