@@ -146,26 +146,73 @@ open http://localhost:3000
 # Login: admin / atf-grafana-2026
 ```
 
+> Grafana datasource (InfluxDB) and ATF Validator dashboard are auto-provisioned on first start via `deploy/grafana/`. No manual setup needed.
+
+---
+
+## Hardware Network Setup
+
+### Topology
+
+```
+Mac mini ──Ethernet── AX4200 LAN (192.168.1.x)
+RPi × N  ──5GHz Wi-Fi (atf_test_5g)── AX4200
+```
+
+### Mac mini — set mDNS hostname (one-time)
+
+```bash
+sudo scutil --set LocalHostName atf-broker
+```
+
+Verify: `ping atf-broker.local` should resolve (127.0.0.1 on Mac mini itself; actual LAN IP from RPi).
+
+### AX4200 — enable 5GHz Wi-Fi (one-time, via SSH)
+
+```bash
+ssh root@192.168.1.1
+
+uci set wireless.radio1.disabled='0'
+uci set wireless.default_radio1.ssid='atf_test_5g'
+uci set wireless.default_radio1.encryption='psk2+ccmp'
+uci set wireless.default_radio1.key='12345678'
+uci commit wireless
+wifi up
+```
+
+> radio1 = 5GHz (MT7986A). radio0 = 2.4GHz (keep disabled for testing).
+
+### Copy SSH key to RPi (one-time per RPi)
+
+```bash
+ssh-copy-id -i ~/.ssh/id_ed25519_personal.pub <user>@raspberrypi.local
+```
+
 ---
 
 ## RPi Agent Setup
 
-### One-command deploy from Mac
+### Deploy from Mac
 
 ```bash
-# Find RPi IP first (from AX4200 DHCP list or ping)
-ping rpi-sta-01.local
+# 1. Rsync repo to RPi
+rsync -av --exclude='.git' --exclude='.venv' --exclude='__pycache__' \
+  -e "ssh -i ~/.ssh/id_ed25519_personal" \
+  /path/to/atf-validator/ <user>@raspberrypi.local:~/atf-validator/
 
-# Deploy code + run setup on RPi
-bash scripts/deploy-rpi.sh <rpi-ip> --agent-id rpi-sta-01 --broker 192.168.1.100
+# 2. Run setup script on RPi (sets hostname, installs packages, configures systemd)
+ssh -i ~/.ssh/id_ed25519_personal <user>@raspberrypi.local \
+  "bash ~/atf-validator/scripts/setup-rpi.sh --broker atf-broker.local --agent-id rpi-sta-01"
 ```
 
-This will:
-1. `rsync` the project to `~/atf-validator/` on the RPi
+`setup-rpi.sh` will:
+1. Set hostname to `rpi-sta-01` → reachable as `rpi-sta-01.local` after reboot
 2. Install `iperf3`, `iw`, `chrony` via apt
 3. Install `uv` + Python 3.11
 4. Run `uv sync`
-5. Install + enable `atf-agent` systemd service
+5. Install + enable `atf-agent` systemd service (broker: `atf-broker.local`)
+
+> Each RPi gets a unique `--agent-id` (rpi-sta-01, rpi-sta-02, …). The ID is baked into the systemd service — RPi always knows who it is after reboot.
 
 ### Start the agent
 
@@ -175,13 +222,60 @@ sudo systemctl start atf-agent
 journalctl -u atf-agent -f
 
 # Or manually
-uv run atf-agent --broker 192.168.1.100 --agent-id rpi-sta-01
+uv run atf-agent --broker atf-broker.local --agent-id rpi-sta-01
 ```
 
 ### Verify on Mac
 
 Open Inspector: `uv run atf-inspector`  
 Browser: `http://localhost:8080` → should show `● online  rpi-sta-01  IDLE`
+
+---
+
+## Running a test
+
+### Single command — no manual setup needed
+
+```bash
+uv run atf-run scenarios/00_smoke_test.yaml       # 1 STA, 30s
+uv run atf-run scenarios/01_two_sta_equal.yaml    # 2 STA, 60s
+```
+
+`atf-run` automatically:
+1. Assigns a unique iperf3 port to each STA (5201, 5202, …)
+2. Starts `iperf3 -s` locally for each port
+3. Synchronises all agents to start at the same timestamp (`sleep_until` with busy-wait)
+4. Streams per-second throughput to InfluxDB in real-time
+5. Kills iperf3 servers and writes run summary when done
+
+> No need to manually run `iperf3 -s` — the orchestrator handles it.
+
+### Watch real-time in Grafana
+
+1. Open `http://localhost:3000` → Dashboards → **ATF Validator**
+2. Set time range to **Last 5 minutes**, auto-refresh **5s**
+3. Run `atf-run` — lines appear in real-time as each STA reports throughput
+
+### Run Inspector for live agent status
+
+```bash
+uv run atf-inspector   # then open http://localhost:8080
+```
+
+---
+
+## Re-deploying code to RPis
+
+After changing agent code on Mac, push to all RPis:
+
+```bash
+for ip in 192.168.1.221 192.168.1.233; do
+  rsync -av --exclude='.git' --exclude='.venv' --exclude='__pycache__' \
+    -e "ssh -i ~/.ssh/id_ed25519_personal" \
+    /path/to/atf-validator/ mars@$ip:~/atf-validator/
+  ssh -i ~/.ssh/id_ed25519_personal mars@$ip "sudo systemctl restart atf-agent"
+done
+```
 
 ---
 

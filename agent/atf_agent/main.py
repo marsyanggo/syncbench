@@ -18,6 +18,7 @@ import time
 
 from agent.atf_agent.traffic.iperf3 import run as run_iperf3
 from shared.mqtt_bus import MQTTBus
+from shared.sync import sleep_until
 
 logging.basicConfig(
     level=logging.INFO,
@@ -193,18 +194,26 @@ class ATFAgent:
         start_ms = payload.get("start_unix_ms", 0)
         duration_sec = payload.get("duration_sec", 30)
 
-        # Sleep until start time
-        now_ms = int(time.time() * 1000)
-        delta_ms = start_ms - now_ms
-        if delta_ms > 0:
-            logger.info("Sleeping %.0f ms until start", delta_ms)
-            time.sleep(delta_ms / 1000)
-
-        actual_start_ms = int(time.time() * 1000)
+        logger.info("Waiting until start (T=%d)", start_ms)
+        actual_start_ms = sleep_until(start_ms)
         sync_offset_ms = actual_start_ms - start_ms
         logger.info("iperf3 starting. sync_offset_ms=%d", sync_offset_ms)
 
         self._set_state("RUNNING")
+
+        # Publish each 1-second sample to MQTT for real-time Grafana streaming
+        def _on_sample(sample):
+            self._bus.publish(
+                f"atf/agent/{self.agent_id}/live/{run_id}",
+                {
+                    "agent_id": self.agent_id,
+                    "run_id": run_id,
+                    "ts_ms": sample.ts_ms,
+                    "throughput_mbps": sample.throughput_mbps,
+                    "retransmits": sample.retransmits,
+                },
+                qos=0,
+            )
 
         # Run iperf3
         cfg = self._traffic_config or {}
@@ -215,6 +224,7 @@ class ATFAgent:
             protocol="udp" if cfg.get("type", "").endswith("udp") else "tcp",
             bandwidth_mbps=cfg.get("bandwidth_mbps"),
             parallel=cfg.get("parallel", 1),
+            on_sample=_on_sample,
         )
 
         self._set_state("REPORTING")
@@ -241,6 +251,14 @@ class ATFAgent:
                         "total_retransmits": result.total_retransmits,
                         "lost_pct": result.lost_pct,
                     },
+                    "samples": [
+                        {
+                            "ts_ms": s.ts_ms,
+                            "throughput_mbps": s.throughput_mbps,
+                            "retransmits": s.retransmits,
+                        }
+                        for s in result.samples
+                    ],
                 },
                 qos=1,
             )

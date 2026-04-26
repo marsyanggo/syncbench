@@ -1,0 +1,13 @@
+apiVersion: 1
+datasources:
+  - name: atf-influxdb
+    uid: atf-influxdb
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    jsonData:
+      version: Flux
+      organization: atf
+      defaultBucket: atf_metrics
+    secureJsonData:
+      token: t8yEFh2LzbKjw_N-FSw-kU0MJQPLKhziQ3RdJJDf4dEta82eB9WASaU0hlz1zBotvs8xmDPamMMKowDeKHlNbQ==

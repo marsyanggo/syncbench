@@ -11,7 +11,7 @@
 set -e
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-BROKER="192.168.1.100"
+BROKER="atf-broker.local"
 AGENT_ID="rpi-sta-01"
 
 # Parse args
@@ -25,6 +25,12 @@ done
 
 _step() { echo; echo "── $1"; }
 _ok()   { echo "  ✓ $1"; }
+
+# ── 0. Hostname ───────────────────────────────────────────────────────
+_step "0. Hostname → $AGENT_ID"
+sudo hostnamectl set-hostname "$AGENT_ID"
+sudo sed -i "s/raspberrypi/$AGENT_ID/g" /etc/hosts
+_ok "hostname set to $AGENT_ID (reachable as $AGENT_ID.local after reboot)"
 
 # ── 1. System packages ────────────────────────────────────────────────
 _step "1. System packages"
@@ -76,7 +82,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
+User=$(whoami)
 WorkingDirectory=$REPO_DIR
 ExecStart=$UV_BIN run atf-agent --broker $BROKER --agent-id $AGENT_ID
 Restart=on-failure

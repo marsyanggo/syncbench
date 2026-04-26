@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: ATF
+    folder: ATF Validator
+    type: file
+    options:
+      path: /etc/grafana/provisioning/dashboards

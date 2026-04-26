@@ -1,35 +1,53 @@
-"""iperf3 runner — wraps iperf3 CLI, parses JSON output, returns structured result.
+"""iperf3 runner — streams per-second samples in real-time.
+
+Runs iperf3 in text mode (no --json) and parses interval lines as they arrive.
+Each parsed sample is passed to on_sample() callback immediately, enabling
+real-time MQTT publishing without waiting for the full test to finish.
 
 Usage:
-    result = run(server="192.168.1.100", duration=30)
-    for s in result.samples:
-        print(f"{s.throughput_mbps:.1f} Mbps  retransmits={s.retransmits}")
+    result = run(server="192.168.1.100", duration=30,
+                 on_sample=lambda s: print(s.throughput_mbps))
 """
 
-import json
 import math
+import re
 import subprocess
 import time
 from dataclasses import dataclass, field
+from typing import Callable
+
+# TCP interval line:
+# [  5]   0.00-1.00   sec  16.1 MBytes   135 Mbits/sec    0    321 KBytes
+_TCP_RE = re.compile(
+    r"\[\s*\d+\]\s+(\d+\.\d+)-(\d+\.\d+)\s+sec\s+"
+    r"[\d.]+\s+\w+Bytes\s+([\d.]+)\s+Mbits/sec\s+(\d+)"
+)
+
+# UDP interval line:
+# [  5]   0.00-1.00   sec  1.25 MBytes  10.5 Mbits/sec  0.023 ms  0/892 (0%)
+_UDP_RE = re.compile(
+    r"\[\s*\d+\]\s+(\d+\.\d+)-(\d+\.\d+)\s+sec\s+"
+    r"[\d.]+\s+\w+Bytes\s+([\d.]+)\s+Mbits/sec\s+"
+    r"[\d.]+\s+ms\s+\d+/\d+\s+\(([\d.]+)%\)"
+)
 
 
 @dataclass
 class ThroughputSample:
-    ts_ms: int            # epoch ms at interval start
-    interval_start: float # seconds from test start
+    ts_ms: int
+    interval_start: float
     interval_end: float
     throughput_mbps: float
     retransmits: int
-    lost_pct: float | None = None  # UDP only
+    lost_pct: float | None = None
 
 
 @dataclass
 class Iperf3Result:
     server: str
-    protocol: str         # "tcp" | "udp"
+    protocol: str
     duration_sec: float
     samples: list[ThroughputSample] = field(default_factory=list)
-    # Summary (filled after all intervals)
     throughput_mean_mbps: float = 0.0
     throughput_stdev_mbps: float = 0.0
     throughput_p95_mbps: float = 0.0
@@ -47,21 +65,22 @@ def run(
     port: int = 5201,
     duration: int = 30,
     protocol: str = "tcp",
-    bandwidth_mbps: int | None = None,  # UDP only
+    bandwidth_mbps: int | None = None,
     parallel: int = 1,
+    on_sample: Callable[[ThroughputSample], None] | None = None,
 ) -> Iperf3Result:
-    """Run iperf3 client and return parsed result.
+    """Run iperf3 client, streaming per-second samples via on_sample callback.
 
-    Blocks until the test completes (duration + ~2s overhead).
+    Blocks until the test completes. on_sample() is called from this thread
+    for each 1-second interval as it arrives.
     """
     cmd = [
-        "iperf3",
-        "--client", server,
+        "iperf3", "--client", server,
         "--port", str(port),
         "--time", str(duration),
         "--interval", "1",
-        "--json",
         "--parallel", str(parallel),
+        "--forceflush",  # flush stdout after each interval (required when piped, not a TTY)
     ]
     if protocol == "udp":
         cmd.append("--udp")
@@ -69,86 +88,93 @@ def run(
             cmd += ["--bandwidth", f"{bandwidth_mbps}M"]
 
     result = Iperf3Result(server=server, protocol=protocol, duration_sec=duration)
+    test_start_ms = int(time.time() * 1000)
 
     try:
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             cmd,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=duration + 30,
+            bufsize=1,  # line-buffered: return each line as soon as it arrives
         )
-    except subprocess.TimeoutExpired:
-        result.error = "iperf3 process timed out"
-        return result
     except FileNotFoundError:
         result.error = "iperf3 not found — install with: apt install iperf3"
         return result
 
-    if proc.returncode != 0:
-        # iperf3 sometimes puts error in JSON, sometimes in stderr
-        try:
-            data = json.loads(proc.stdout)
-            result.error = data.get("error", proc.stderr.strip())
-        except json.JSONDecodeError:
-            result.error = proc.stderr.strip() or f"exit code {proc.returncode}"
-        return result
+    is_udp = protocol == "udp"
+    samples: list[ThroughputSample] = []
 
-    try:
-        data = json.loads(proc.stdout)
-    except json.JSONDecodeError:
-        result.error = "failed to parse iperf3 JSON output"
-        return result
-
-    if "error" in data:
-        result.error = data["error"]
-        return result
-
-    # Parse per-interval samples
-    test_start_ms = int(data["start"]["timestamp"]["timemillisecs"])
-    is_udp = data["start"]["test_start"]["protocol"] == "UDP"
-
-    for interval in data.get("intervals", []):
-        s = interval["sum"]
-        # skip omitted warmup intervals
-        if s.get("omitted"):
+    for line in proc.stdout:
+        sample = _parse_line(line, is_udp, test_start_ms)
+        if sample is None:
             continue
-        interval_start = s["start"]
-        ts_ms = test_start_ms + int(interval_start * 1000)
-        mbps = s["bits_per_second"] / 1_000_000
+        samples.append(sample)
+        if on_sample:
+            on_sample(sample)
 
-        lost_pct = None
-        if is_udp:
-            packets = s.get("packets", 0)
-            lost = s.get("lost_packets", 0)
-            lost_pct = (lost / packets * 100) if packets > 0 else 0.0
+    proc.wait(timeout=duration + 30)
 
-        result.samples.append(ThroughputSample(
-            ts_ms=ts_ms,
-            interval_start=interval_start,
-            interval_end=s["end"],
-            throughput_mbps=mbps,
-            retransmits=s.get("retransmits", 0),
-            lost_pct=lost_pct,
-        ))
-
-    if not result.samples:
-        result.error = "no interval data in iperf3 output"
+    if proc.returncode != 0:
+        stderr = proc.stderr.read()
+        result.error = stderr.strip() or f"exit code {proc.returncode}"
         return result
 
-    # Compute summary statistics
+    if not samples:
+        result.error = "no interval data received from iperf3"
+        return result
+
+    result.samples = samples
+    _compute_stats(result)
+    return result
+
+
+def _parse_line(
+    line: str, is_udp: bool, test_start_ms: int
+) -> ThroughputSample | None:
+    if is_udp:
+        m = _UDP_RE.search(line)
+        if not m:
+            return None
+        t0, t1 = float(m.group(1)), float(m.group(2))
+        if t1 - t0 > 1.5:  # skip final summary line
+            return None
+        return ThroughputSample(
+            ts_ms=test_start_ms + int(t0 * 1000),
+            interval_start=t0,
+            interval_end=t1,
+            throughput_mbps=float(m.group(3)),
+            retransmits=0,
+            lost_pct=float(m.group(4)),
+        )
+    else:
+        m = _TCP_RE.search(line)
+        if not m:
+            return None
+        t0, t1 = float(m.group(1)), float(m.group(2))
+        if t1 - t0 > 1.5:  # skip final summary line
+            return None
+        return ThroughputSample(
+            ts_ms=test_start_ms + int(t0 * 1000),
+            interval_start=t0,
+            interval_end=t1,
+            throughput_mbps=float(m.group(3)),
+            retransmits=int(m.group(4)),
+            lost_pct=None,
+        )
+
+
+def _compute_stats(result: Iperf3Result) -> None:
     values = [s.throughput_mbps for s in result.samples]
-    mean = sum(values) / len(values)
-    variance = sum((v - mean) ** 2 for v in values) / len(values)
-    sorted_values = sorted(values)
-    p95_idx = int(len(sorted_values) * 0.95)
+    n = len(values)
+    mean = sum(values) / n
+    variance = sum((v - mean) ** 2 for v in values) / n
+    sorted_v = sorted(values)
+    p95_idx = max(0, int(n * 0.95) - 1)
 
     result.throughput_mean_mbps = mean
     result.throughput_stdev_mbps = math.sqrt(variance)
-    result.throughput_p95_mbps = sorted_values[min(p95_idx, len(sorted_values) - 1)]
+    result.throughput_p95_mbps = sorted_v[p95_idx]
     result.total_retransmits = sum(s.retransmits for s in result.samples)
-
-    if is_udp:
-        lost_values = [s.lost_pct for s in result.samples if s.lost_pct is not None]
-        result.lost_pct = sum(lost_values) / len(lost_values) if lost_values else 0.0
-
-    return result
+    if result.samples[0].lost_pct is not None:
+        result.lost_pct = sum(s.lost_pct for s in result.samples if s.lost_pct is not None) / n

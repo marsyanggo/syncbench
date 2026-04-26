@@ -1,6 +1,6 @@
 # Project Targets — ATF Validator
 
-_Last updated: 2026-04-26 01:50 PDT_
+_Last updated: 2026-04-26 16:05 PDT_
 
 ---
 
@@ -62,10 +62,10 @@ _Last updated: 2026-04-26 01:50 PDT_
 ### 硬體線（需要 RPi）
 
 - [x] A1：燒 RPi OS Lite 64-bit（bookworm）— 已完成
-- [ ] A2：RPi 連上 AX4200 Wi-Fi，SSH 可進
-- [ ] A3：RPi 安裝 iperf3 + chrony + iw + uv + Python 3.11
-- [ ] A4：clone repo + `uv sync`，部署 agent 程式碼
-- [ ] A5：`uv run atf-agent --broker 192.168.1.100 --agent-id rpi-sta-01` → Inspector 顯示上線
+- [x] A2：RPi 連上 AX4200 Wi-Fi（atf_test_5g），SSH 可進（rpi-sta-01 IP: 192.168.1.221）
+- [x] A3：RPi 安裝 iperf3 + chrony + iw + uv + Python 3.11
+- [x] A4：clone repo + `uv sync`，部署 agent 程式碼
+- [x] A5：`atf-agent` 跑起來，Inspector 顯示 rpi-sta-01 IDLE
 
 ### 軟體線（Mac，可立即開始）
 
@@ -86,26 +86,57 @@ _Last updated: 2026-04-26 01:50 PDT_
 ### 合體驗收
 
 - [x] OpenWrt AP 確認型號：ASUS AX4200（MT7986A Filogic 830，mt76 driver）
-- [ ] hostapd 確認 ATF 介面存在（`iw phy phy0 info | grep airtime`，本次先不 enable）
-- [ ] Mac mini 跑 `iperf3 -s`，RPi 作為 iperf3 client 連 AP
-- [ ] `atf-run scenarios/00_smoke_test.yaml` 一條指令跑完整流程（30 秒）
-- [ ] Inspector 顯示 rpi-sta-01 state: RUNNING → REPORTING → IDLE
+- [x] AX4200 5GHz Wi-Fi 設定（SSID: atf_test_5g, WPA2 AES, ch36 HE80）
+- [x] Mac mini mDNS hostname 設定（`atf-broker.local`，`sudo scutil --set LocalHostName atf-broker`）
+- [x] `scenarios/*.yaml` broker IP 全改為 `atf-broker.local`（支援 DHCP 環境彈性）
+- [x] `scripts/setup-rpi.sh` 更新（Step 0 自動設 hostname、`User=$(whoami)` 動態抓）
+- [x] `docs/development-setup.md` 新增 Hardware Network Setup 段落
+- [x] hostapd 確認 ATF 介面存在（`iw phy phy1 info | grep airtime` → AIRTIME_FAIRNESS + AQL）
+- [x] Mac mini 跑 `iperf3-darwin -s`，RPi 作為 iperf3 client 連 AP（252 Mbps）
+- [x] `atf-run scenarios/00_smoke_test.yaml` 一條指令跑完整流程（30 秒）PASSED
+- [x] Inspector 顯示 rpi-sta-01 state: RUNNING → REPORTING → IDLE
+- [x] `iperf3.py` bug fix：`timemillisecs` KeyError → `timesecs * 1000` fallback（iperf3 3.18 相容）
 
 ---
 
-## Goal: Week 3 — 3 台 STA + 同步驗證
+## Goal: Week 3 — 多台 STA + 同步驗證
 
-> 3 台 STA 同步 <100 ms 已量化證明
+> 2 台先跑通，架構驗證後彈性擴充到 3 台。同步誤差 <100ms 量化證明。
 
-### Sub-tasks
+### Step 1 — 第 2 台 RPi 上線
 
-- [ ] 複製 RPi image 到 3 台，共 3 台 STA 能同時上線
-- [ ] 跑 `01_two_sta_equal.yaml` 與 `02_three_sta_equal.yaml`
-- [ ] 寫 `sync.py` 的 NTP-aware `sleep_until`，量測實際 sync offset
-- [ ] Grafana 加 sync-quality dashboard（顯示所有 agent sync offset 分布）
-- [ ] AP collector 接上，讀 debugfs 寫 InfluxDB
-- [ ] 補完 capability collector（L2 PHY 層 + L3 QoS 層），Inspector 完整顯示四層
-- [ ] SQLite store 接上 preflight，history sidebar 功能完成
+- [x] rpi-sta-02：`setup-rpi.sh --agent-id rpi-sta-02`（IP: 192.168.1.233）
+- [x] Inspector 同時顯示 rpi-sta-01 + rpi-sta-02 ●online
+
+### Step 2 — 2 台同步測試
+
+- [x] Orchestrator 自動管理 iperf3 server（port pool 5201/5202，subprocess spawn/kill，N 台自動擴充）
+- [x] `01_two_sta_equal.yaml` 移除 hardcoded port，由 orchestrator 動態分配
+- [x] 跑 `atf-run scenarios/01_two_sta_equal.yaml`（2 台同時 iperf3）PASSED
+- [x] sync_offset 實測 0–1ms（< 100ms 門檻）✅
+
+### Step 3 — sync 精度提升
+
+- [x] `shared/sync.py` NTP-aware `sleep_until`（coarse sleep + 20ms busy-wait hybrid）
+- [x] sync_offset 實測穩定 0ms，每次 run 記錄在 result payload
+
+### Step 4 — Grafana dashboard
+
+- [x] `controller/atf_ctrl/metrics/influx_writer.py`：per-interval samples + run_summary 寫 InfluxDB
+- [x] Agent result payload 加入 `samples` 陣列（每秒一點）
+- [x] Grafana dashboard（throughput 曲線 / sync offset bar / mean stat 三 panels）
+- [x] Grafana datasource provisioning + docker-compose datasources volume mount
+- [x] 驗證：122 points 寫入成功，`http://localhost:3000` 看到圖
+
+### Step 5 — AP collector
+
+- [ ] SSH into AX4200，讀 `/sys/kernel/debug/ieee80211/phy1/mt76/airtime`
+- [ ] AP collector 定期寫 InfluxDB（airtime per station）
+
+### Step 6 — 擴充到 3 台（選做，有第 3 台 RPi 再做）
+
+- [ ] 燒第 3 台 RPi，`--agent-id rpi-sta-03`
+- [ ] 建立 `02_three_sta_equal.yaml`，跑通 3 台同步
 
 ---
 

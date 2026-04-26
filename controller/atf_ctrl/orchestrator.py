@@ -11,6 +11,8 @@ Flow:
 """
 
 import logging
+import shutil
+import subprocess
 import threading
 import time
 from dataclasses import dataclass, field
@@ -25,6 +27,15 @@ logger = logging.getLogger("atf.orchestrator")
 ACK_TIMEOUT = 30.0      # seconds to wait for all agents to ack prepare
 RESULT_TIMEOUT = 30.0   # seconds to wait for results after stop
 START_DELAY_MS = 5000   # ms between start_at broadcast and actual start
+BASE_IPERF3_PORT = 5201
+
+
+def _find_iperf3() -> str:
+    for name in ["iperf3", "iperf3-darwin"]:
+        path = shutil.which(name)
+        if path:
+            return path
+    raise RuntimeError("iperf3 not found — install with: brew install iperf3 / apt install iperf3")
 
 
 @dataclass
@@ -61,6 +72,7 @@ class Orchestrator:
         self._acks: dict[str, threading.Event] = {}
         self._results: dict[str, dict] = {}
         self._result_lock = threading.Lock()
+        self._iperf3_procs: list[subprocess.Popen] = []
 
     # ------------------------------------------------------------------
     # Public API
@@ -74,10 +86,40 @@ class Orchestrator:
         logger.info("Starting run %s — scenario: %s", run_id, scenario.name)
         logger.info("Expected agents: %s", expected)
 
-        # Subscribe to acks and results for this run
+        # Assign unique ports and build station_traffic map
+        station_traffic = {
+            s.node: {
+                "type": s.traffic.type,
+                "server": s.traffic.server,
+                "port": BASE_IPERF3_PORT + i,
+                "parallel": s.traffic.parallel,
+                "bandwidth_mbps": s.traffic.bandwidth_mbps,
+            }
+            for i, s in enumerate(scenario.stations)
+        }
+
+        # Subscribe to acks, results, and live samples for this run
         cmd_id = str(ULID())
         self._setup_subscriptions(run_id, expected)
+        self._setup_live_subscription(run_id, scenario.name)
 
+        # Start local iperf3 servers before prepare
+        self._start_iperf3_servers(station_traffic)
+
+        try:
+            return self._run_phases(run_id, cmd_id, scenario, expected, station_traffic, result)
+        finally:
+            self._stop_iperf3_servers()
+
+    def _run_phases(
+        self,
+        run_id: str,
+        cmd_id: str,
+        scenario: Scenario,
+        expected: list[str],
+        station_traffic: dict,
+        result: RunResult,
+    ) -> RunResult:
         # Phase 1: Prepare
         logger.info("Phase 1: Broadcasting prepare")
         self._bus.publish(
@@ -88,17 +130,7 @@ class Orchestrator:
                 "scenario_name": scenario.name,
                 "expected_agents": expected,
                 "phase_timeout_sec": int(ACK_TIMEOUT),
-                # Pass iperf3 config per-station (agent picks its own)
-                "station_traffic": {
-                    s.node: {
-                        "type": s.traffic.type,
-                        "server": s.traffic.server,
-                        "port": s.traffic.port,
-                        "parallel": s.traffic.parallel,
-                        "bandwidth_mbps": s.traffic.bandwidth_mbps,
-                    }
-                    for s in scenario.stations
-                },
+                "station_traffic": station_traffic,
             },
         )
 
@@ -107,6 +139,7 @@ class Orchestrator:
             result.error = f"Prepare timeout — no ack from: {missing}"
             logger.error(result.error)
             return result
+
 
         # Phase 2: Start
         start_ms = int(time.time() * 1000) + START_DELAY_MS
@@ -140,6 +173,16 @@ class Orchestrator:
         # Teardown
         self._bus.publish("atf/ctrl/broadcast/teardown", {"run_id": run_id})
         logger.info("Run %s finished. ok=%s", run_id, result.ok)
+
+        # Write to InfluxDB
+        try:
+            from controller.atf_ctrl.metrics.influx_writer import InfluxWriter
+            writer = InfluxWriter()
+            writer.write_run(result, scenario.name)
+            writer.close()
+        except Exception as exc:
+            logger.warning("InfluxDB write failed (non-fatal): %s", exc)
+
         return result
 
     def stop(self) -> None:
@@ -149,6 +192,55 @@ class Orchestrator:
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
+
+    def _setup_live_subscription(self, run_id: str, scenario_name: str) -> None:
+        try:
+            from influxdb_client import InfluxDBClient, Point, WritePrecision
+            from influxdb_client.client.write_api import SYNCHRONOUS
+            from controller.atf_ctrl.metrics.influx_writer import INFLUX_TOKEN, INFLUX_ORG, INFLUX_BUCKET, INFLUX_URL
+
+            client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
+            write_api = client.write_api(write_options=SYNCHRONOUS)
+
+            def _on_live(topic: str, payload: dict) -> None:
+                agent_id = topic.split("/")[2]
+                p = (
+                    Point("throughput")
+                    .tag("run_id", run_id)
+                    .tag("agent_id", agent_id)
+                    .tag("scenario", scenario_name)
+                    .field("throughput_mbps", float(payload.get("throughput_mbps", 0)))
+                    .field("retransmits", int(payload.get("retransmits", 0)))
+                    .time(payload["ts_ms"] * 1_000_000, WritePrecision.NS)
+                )
+                write_api.write(bucket=INFLUX_BUCKET, record=p)
+
+            self._bus.subscribe(f"atf/agent/+/live/{run_id}", _on_live, qos=0)
+            logger.info("Live InfluxDB writer active for run %s", run_id)
+        except Exception as exc:
+            logger.warning("Live collector unavailable (non-fatal): %s", exc)
+
+    def _start_iperf3_servers(self, station_traffic: dict) -> None:
+        binary = _find_iperf3()
+        ports = sorted({v["port"] for v in station_traffic.values()})
+        for port in ports:
+            proc = subprocess.Popen(
+                [binary, "-s", "-p", str(port)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            self._iperf3_procs.append(proc)
+            logger.info("iperf3 server started on port %d (pid %d)", port, proc.pid)
+
+    def _stop_iperf3_servers(self) -> None:
+        for proc in self._iperf3_procs:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+        self._iperf3_procs.clear()
+        logger.info("iperf3 servers stopped")
 
     def _setup_subscriptions(self, run_id: str, agents: list[str]) -> None:
         # Acks

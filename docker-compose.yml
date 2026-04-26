@@ -37,6 +37,7 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./deploy/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./deploy/grafana/datasources:/etc/grafana/provisioning/datasources
     depends_on:
       - influxdb
     restart: unless-stopped
