@@ -148,6 +148,43 @@ open http://localhost:3000
 
 ---
 
+## RPi Agent Setup
+
+### One-command deploy from Mac
+
+```bash
+# Find RPi IP first (from AX4200 DHCP list or ping)
+ping rpi-sta-01.local
+
+# Deploy code + run setup on RPi
+bash scripts/deploy-rpi.sh <rpi-ip> --agent-id rpi-sta-01 --broker 192.168.1.100
+```
+
+This will:
+1. `rsync` the project to `~/atf-validator/` on the RPi
+2. Install `iperf3`, `iw`, `chrony` via apt
+3. Install `uv` + Python 3.11
+4. Run `uv sync`
+5. Install + enable `atf-agent` systemd service
+
+### Start the agent
+
+```bash
+# On RPi — via systemd (auto-restarts, survives reboot)
+sudo systemctl start atf-agent
+journalctl -u atf-agent -f
+
+# Or manually
+uv run atf-agent --broker 192.168.1.100 --agent-id rpi-sta-01
+```
+
+### Verify on Mac
+
+Open Inspector: `uv run atf-inspector`  
+Browser: `http://localhost:8080` → should show `● online  rpi-sta-01  IDLE`
+
+---
+
 ## Commit guidelines
 
 - **No commits between 09:00–18:00 on workdays** (legal compliance)
