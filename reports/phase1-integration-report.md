@@ -89,7 +89,23 @@ All runs achieve **0–1 ms sync offset** across heterogeneous platforms (ARM64 
 
 Two RPi 500 units (both 1×1 Wi-Fi 5) show near-perfect throughput fairness (Jain's FI = 0.998) even without ATF. This validates the pipeline baseline.
 
-### 3.3 Heterogeneous STAs — throughput fairness is fundamentally limited
+### 3.3 AX4200 ATF Support Status
+
+> **⚠️ FINDING: ASUS AX4200 (MT7986A / mt76) does NOT effectively support ATF in HE80 mode.**
+
+The AP advertises `AIRTIME_FAIRNESS` and `AQL` capabilities via nl80211, and `airtime_mode=2` sets the `AIRTIME_TX | AIRTIME_RX` flags in debugfs. However, in practice:
+
+- All ATF mode combinations (0, 1, 2) produce statistically identical throughput distributions
+- Per-STA `airtime_weight` values (tested: 256, 51, 25, 10) are accepted by the driver and visible in debugfs, but have **zero measurable effect** on scheduling
+- Switching modes causes brief client reconnection but no lasting behavioral difference
+
+**Root cause:** HE80 (Wi-Fi 6) OFDMA shifts scheduling from per-STA contention to AP-controlled resource unit (RU) allocation. The mac80211 airtime fairness scheduler (which `airtime_weight` targets) operates on the legacy TXQ path and is bypassed in OFDMA mode. mt76's HE80 RU scheduler does not expose per-STA weight controls.
+
+**Practical implication:** ATF validation on this testbed can measure the *absence* of fairness (baseline characterisation) but cannot demonstrate ATF *correction* of unfairness. A router with effective ATF support (e.g., one running in VHT80/AC mode, or a platform with a dedicated ATF-aware OFDMA scheduler) is needed for on/off comparison tests.
+
+---
+
+### 3.4 Heterogeneous STAs — throughput fairness is fundamentally limited
 
 With a Wi-Fi 6 2×2 laptop alongside Wi-Fi 5 1×1 RPis:
 - **ATF airtime fairness** (equal airtime per STA) has a small positive effect (+0.006 Jain's FI)
@@ -98,7 +114,7 @@ With a Wi-Fi 6 2×2 laptop alongside Wi-Fi 5 1×1 RPis:
 
 **This is an expected and documented limitation:** airtime weight was designed for CSMA/CA contention-based access. In OFDMA, the AP's resource unit scheduler is the dominant mechanism, and it does not expose per-STA weight controls in the current mt76/mac80211 implementation.
 
-### 3.4 Conclusion on ATF effectiveness (heterogeneous environment)
+### 3.5 Conclusion on ATF effectiveness (heterogeneous environment)
 
 | Metric | ATF off | ATF on (best) | Delta |
 |---|---|---|---|
