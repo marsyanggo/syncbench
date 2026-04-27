@@ -1,6 +1,6 @@
 # Project Targets — ATF Validator
 
-_Last updated: 2026-04-26 16:05 PDT_
+_Last updated: 2026-04-26 17:30 PDT_
 
 ---
 
@@ -125,6 +125,10 @@ _Last updated: 2026-04-26 16:05 PDT_
 - [x] `controller/atf_ctrl/metrics/influx_writer.py`：per-interval samples + run_summary 寫 InfluxDB
 - [x] Agent result payload 加入 `samples` 陣列（每秒一點）
 - [x] Grafana dashboard（throughput 曲線 / sync offset bar / mean stat 三 panels）
+- [x] iperf3.py text-mode streaming（`--forceflush` + `bufsize=1`）+ `on_sample` callback
+- [x] Live MQTT topic `atf/agent/{id}/live/{run_id}`，orchestrator 即時寫 InfluxDB
+- [x] Stat panel 即時 rolling average（`throughput` measurement, group by agent+run, last per agent）
+- [x] Grafana 顯示優化：清理空 agent_id 髒資料、`displayName` 用 `${__field.labels.agent_id}`、小數點 1 位
 - [x] Grafana datasource provisioning + docker-compose datasources volume mount
 - [x] 驗證：122 points 寫入成功，`http://localhost:3000` 看到圖
 
