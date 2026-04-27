@@ -24,6 +24,20 @@ Uses only public kernel interfaces: `iw`, `nl80211`, `hostapd_cli`, Linux `debug
 
 Note: AX4200 (MT7986A/mt76) ATF is not effective in HE80 OFDMA mode — see [methodology](docs/methodology.md).
 
+## Demo
+
+### 2-STA: 2 × Raspberry Pi (Jain's FI = 0.999)
+
+https://github.com/user-attachments/assets/5e907b10-2de8-434c-bcf9-475a82c2dacc
+
+### 3-STA: 2 × Raspberry Pi + 1 × Linux NB (Jain's FI = 0.642)
+
+https://github.com/user-attachments/assets/c9923234-d7bc-45a8-9ecb-760eac045d38
+
+> Both runs: sync offset 0–1 ms, auto-generated report, real-time Grafana throughput curves.
+
+---
+
 ## Quick Start
 
 ```bash
