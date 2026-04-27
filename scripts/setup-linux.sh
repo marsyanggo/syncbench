@@ -63,8 +63,17 @@ else
     _step "1. Wi-Fi (skipped, use --wifi-ssid to auto-connect)"
 fi
 
-# ── 2. Disable Wi-Fi power save (laptop critical) ────────────────────
-_step "2. Disable Wi-Fi power save"
+# ── 2. System packages ────────────────────────────────────────────────
+_step "2. System packages"
+sudo apt-get update -qq
+sudo apt-get install -y --no-install-recommends \
+    iperf3 iw chrony curl ca-certificates
+_ok "iperf3 $(iperf3 --version 2>&1 | head -1)"
+_ok "iw $(iw --version 2>/dev/null || echo 'installed')"
+_ok "chrony installed"
+
+# ── 3. Disable Wi-Fi power save (laptop critical, runs after iw is installed) ──
+_step "3. Disable Wi-Fi power save"
 WIFI_IFACE=$(iw dev 2>/dev/null | awk '/Interface/ {print $2; exit}')
 if [[ -n "$WIFI_IFACE" ]]; then
     sudo iw dev "$WIFI_IFACE" set power_save off 2>/dev/null && \
@@ -78,15 +87,6 @@ if [[ -n "$WIFI_IFACE" ]]; then
 else
     _warn "no Wi-Fi interface detected"
 fi
-
-# ── 3. System packages ────────────────────────────────────────────────
-_step "3. System packages"
-sudo apt-get update -qq
-sudo apt-get install -y --no-install-recommends \
-    iperf3 iw chrony curl ca-certificates
-_ok "iperf3 $(iperf3 --version 2>&1 | head -1)"
-_ok "iw $(iw --version 2>/dev/null || echo 'installed')"
-_ok "chrony installed"
 
 # ── 4. uv + Python 3.11 ──────────────────────────────────────────────
 _step "4. uv + Python 3.11"

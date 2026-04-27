@@ -1,6 +1,6 @@
 # Project Targets — ATF Validator
 
-_Last updated: 2026-04-26 18:00 PDT_
+_Last updated: 2026-04-26 18:00 PDT (Linux NB validated)_
 
 ---
 
@@ -150,6 +150,14 @@ _Last updated: 2026-04-26 18:00 PDT_
 - [x] setup script 加入 `--wifi-ssid` / `--wifi-pass`（NetworkManager 自動連線）+ Wi-Fi power_save off
 - [x] `docs/multi-platform.md` + `multi-platform-zh.md`：支援矩陣、PlatformAdapter ABC 抽象、新增平台 recipe、各平台 caveats、混合 scenario 範例、agent_id 命名慣例
 - [x] User guides 新增 6.7「Adding a Linux laptop or other device」段落
+
+### Step 8 — Linux NB 實機驗證
+
+- [x] linux-nb-01（ThinkPad X1 Carbon Gen 13 / Ubuntu 24.04 / Wi-Fi 6）部署成功
+- [x] setup-linux.sh 修正：power_save 步驟移到 apt 安裝 iw 之後
+- [x] 建立 `scenarios/02_three_sta_mixed.yaml`（2 RPi + 1 NB）
+- [x] 3-STA 異質測試 PASSED：rpi 各 ~80 Mbps，NB ~413 Mbps，sync_offset 全部 0ms
+- [x] User guide 加 Ubuntu NOPASSWD sudo troubleshooting 段
 
 ---
 

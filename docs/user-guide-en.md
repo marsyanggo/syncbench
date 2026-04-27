@@ -471,6 +471,17 @@ sudo nmcli dev wifi connect atf_test_5g password 12345678
 # OR edit /etc/wpa_supplicant/wpa_supplicant.conf
 ```
 
+### Ubuntu / Debian: `setup-linux.sh` fails with "sudo: a password is required"
+
+Ubuntu/Debian users do NOT have NOPASSWD sudo by default (RPi imager presets it). On the target device, run once:
+
+```bash
+echo "$USER ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/$USER-nopasswd
+sudo chmod 0440 /etc/sudoers.d/$USER-nopasswd
+```
+
+Then re-run `setup-linux.sh` from the controller.
+
 ### `atf-agent` fails to start with `status=217/USER`
 
 Symptom: `systemctl status atf-agent` shows `code=exited, status=217/USER`.

@@ -1,0 +1,22 @@
+extends: _base/normal.yaml
+
+name: "Three STA Mixed (2 RPi + 1 Linux NB)"
+description: "Heterogeneous platform test: 2 Raspberry Pis + 1 Linux laptop"
+duration_sec: 60
+
+preflight:
+  expected_agents: ["rpi-sta-01", "rpi-sta-02", "linux-nb-01"]
+
+stations:
+  - node: rpi-sta-01
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+  - node: rpi-sta-02
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+  - node: linux-nb-01
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
