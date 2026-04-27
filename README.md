@@ -30,6 +30,9 @@ Full user guide:
 - [English](docs/user-guide-en.md) — installation, topology, usage, troubleshooting
 - [中文](docs/user-guide-zh.md) — 安裝、拓撲、使用、疑難排解
 
+Multi-platform support roadmap:
+- [English](docs/multi-platform.md) / [中文](docs/multi-platform-zh.md)
+
 Developer setup notes: [docs/development-setup.md](docs/development-setup.md)
 
 **Quick summary of required tools:**

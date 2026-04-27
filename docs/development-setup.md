@@ -202,10 +202,10 @@ rsync -av --exclude='.git' --exclude='.venv' --exclude='__pycache__' \
 
 # 2. Run setup script on RPi (sets hostname, installs packages, configures systemd)
 ssh -i ~/.ssh/id_ed25519_personal <user>@raspberrypi.local \
-  "bash ~/atf-validator/scripts/setup-rpi.sh --broker atf-broker.local --agent-id rpi-sta-01"
+  "bash ~/atf-validator/scripts/setup-linux.sh --broker atf-broker.local --agent-id rpi-sta-01"
 ```
 
-`setup-rpi.sh` will:
+`setup-linux.sh` will:
 1. Set hostname to `rpi-sta-01` → reachable as `rpi-sta-01.local` after reboot
 2. Install `iperf3`, `iw`, `chrony` via apt
 3. Install `uv` + Python 3.11

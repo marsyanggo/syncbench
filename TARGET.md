@@ -1,6 +1,6 @@
 # Project Targets — ATF Validator
 
-_Last updated: 2026-04-26 17:45 PDT_
+_Last updated: 2026-04-26 18:00 PDT_
 
 ---
 
@@ -143,6 +143,13 @@ _Last updated: 2026-04-26 17:45 PDT_
 
 - [ ] 燒第 3 台 RPi，`--agent-id rpi-sta-03`
 - [ ] 建立 `02_three_sta_equal.yaml`，跑通 3 台同步
+
+### Step 7 — 多平台支援預備工作
+
+- [x] `setup-rpi.sh` 改名 → `setup-linux.sh`（同時支援 RPi 跟筆電）
+- [x] setup script 加入 `--wifi-ssid` / `--wifi-pass`（NetworkManager 自動連線）+ Wi-Fi power_save off
+- [x] `docs/multi-platform.md` + `multi-platform-zh.md`：支援矩陣、PlatformAdapter ABC 抽象、新增平台 recipe、各平台 caveats、混合 scenario 範例、agent_id 命名慣例
+- [x] User guides 新增 6.7「Adding a Linux laptop or other device」段落
 
 ---
 

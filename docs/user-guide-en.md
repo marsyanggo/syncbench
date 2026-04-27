@@ -260,10 +260,10 @@ rsync -av --exclude='.git' --exclude='.venv' --exclude='__pycache__' \
 
 # 2. Run setup
 ssh -i ~/.ssh/id_ed25519_personal mars@$RPI_IP \
-  "bash ~/atf-validator/scripts/setup-rpi.sh --broker atf-broker.local --agent-id $AGENT_ID"
+  "bash ~/atf-validator/scripts/setup-linux.sh --broker atf-broker.local --agent-id $AGENT_ID"
 ```
 
-`setup-rpi.sh` automatically:
+`setup-linux.sh` automatically:
 1. Sets hostname to `$AGENT_ID` → reachable as `<agent-id>.local` after reboot
 2. Installs `iperf3`, `iw`, `chrony` via apt
 3. Installs `uv` + Python 3.11
@@ -287,6 +287,33 @@ uv run atf-inspector
 # Open http://localhost:8080
 # Should show: ● online  rpi-sta-01  IDLE  +0.0ms
 ```
+
+### 6.7 Adding a Linux laptop or other device
+
+The same `setup-linux.sh` works on any Debian-based device (Ubuntu/Debian laptop, NUC, etc.). For laptops, also pass Wi-Fi credentials to auto-join the test SSID and disable Wi-Fi power save:
+
+```bash
+NB_IP=192.168.1.245
+AGENT_ID=linux-nb-01
+
+rsync -av --exclude='.git' --exclude='.venv' --exclude='__pycache__' \
+  -e "ssh -i ~/.ssh/id_ed25519_personal" \
+  ~/workspace/atf-validator/ user@$NB_IP:~/atf-validator/
+
+ssh -i ~/.ssh/id_ed25519_personal user@$NB_IP \
+  "bash ~/atf-validator/scripts/setup-linux.sh \
+     --broker atf-broker.local \
+     --agent-id $AGENT_ID \
+     --wifi-ssid atf_test_5g \
+     --wifi-pass 12345678"
+```
+
+> Laptops also need suspend/lid-close disabled for long test runs:
+> ```
+> sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
+> ```
+
+For other platforms (Windows, Android, etc.) and the abstraction architecture, see [multi-platform.md](multi-platform.md).
 
 ---
 
@@ -455,7 +482,7 @@ sudo systemctl daemon-reload
 sudo systemctl restart atf-agent
 ```
 
-> `setup-rpi.sh` now sets `User=$(whoami)` automatically — only old deployments hit this.
+> `setup-linux.sh` now sets `User=$(whoami)` automatically — only old deployments hit this.
 
 ### `atf-run` fails with "iperf3 timeout"
 
@@ -498,7 +525,7 @@ Common causes:
 
 Symptom: Two RPis broadcast the same mDNS name, mDNS resolution becomes random.
 
-Fix: re-run `setup-rpi.sh --agent-id rpi-sta-XX` on each RPi (it sets a unique hostname). Or manually:
+Fix: re-run `setup-linux.sh --agent-id rpi-sta-XX` on each RPi (it sets a unique hostname). Or manually:
 ```bash
 sudo hostnamectl set-hostname rpi-sta-02
 sudo sed -i 's/raspberrypi/rpi-sta-02/g' /etc/hosts

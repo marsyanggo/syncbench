@@ -260,10 +260,10 @@ rsync -av --exclude='.git' --exclude='.venv' --exclude='__pycache__' \
 
 # 2. 跑 setup
 ssh -i ~/.ssh/id_ed25519_personal mars@$RPI_IP \
-  "bash ~/atf-validator/scripts/setup-rpi.sh --broker atf-broker.local --agent-id $AGENT_ID"
+  "bash ~/atf-validator/scripts/setup-linux.sh --broker atf-broker.local --agent-id $AGENT_ID"
 ```
 
-`setup-rpi.sh` 會自動：
+`setup-linux.sh` 會自動：
 1. 把 hostname 設成 `$AGENT_ID` → 重開機後可以用 `<agent-id>.local` 連
 2. 透過 apt 安裝 `iperf3`、`iw`、`chrony`
 3. 安裝 `uv` + Python 3.11
@@ -287,6 +287,33 @@ uv run atf-inspector
 # 開 http://localhost:8080
 # 應該顯示：● online  rpi-sta-01  IDLE  +0.0ms
 ```
+
+### 6.7 加入 Linux 筆電或其他裝置
+
+同一個 `setup-linux.sh` 在任何 Debian-based 裝置都能用（Ubuntu/Debian 筆電、NUC 等）。如果是筆電，多傳 Wi-Fi 帳密自動連線並關掉 Wi-Fi power save：
+
+```bash
+NB_IP=192.168.1.245
+AGENT_ID=linux-nb-01
+
+rsync -av --exclude='.git' --exclude='.venv' --exclude='__pycache__' \
+  -e "ssh -i ~/.ssh/id_ed25519_personal" \
+  ~/workspace/atf-validator/ user@$NB_IP:~/atf-validator/
+
+ssh -i ~/.ssh/id_ed25519_personal user@$NB_IP \
+  "bash ~/atf-validator/scripts/setup-linux.sh \
+     --broker atf-broker.local \
+     --agent-id $AGENT_ID \
+     --wifi-ssid atf_test_5g \
+     --wifi-pass 12345678"
+```
+
+> 筆電長時間測試還需要關掉 suspend/lid-close：
+> ```
+> sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
+> ```
+
+其他平台（Windows、Android 等）跟抽象架構說明，請看 [multi-platform-zh.md](multi-platform-zh.md)。
 
 ---
 
@@ -455,7 +482,7 @@ sudo systemctl daemon-reload
 sudo systemctl restart atf-agent
 ```
 
-> `setup-rpi.sh` 現在會自動設 `User=$(whoami)`，只有舊部署會踩到。
+> `setup-linux.sh` 現在會自動設 `User=$(whoami)`，只有舊部署會踩到。
 
 ### `atf-run` 失敗 "iperf3 timeout"
 
@@ -498,7 +525,7 @@ ssh mars@<rpi_ip> "journalctl -u atf-agent -n 30"
 
 症狀：兩台 RPi 廣播同樣的 mDNS 名字，解析變成隨機。
 
-修正：每台 RPi 重跑 `setup-rpi.sh --agent-id rpi-sta-XX`（會自動設唯一 hostname）。或手動：
+修正：每台 RPi 重跑 `setup-linux.sh --agent-id rpi-sta-XX`（會自動設唯一 hostname）。或手動：
 ```bash
 sudo hostnamectl set-hostname rpi-sta-02
 sudo sed -i 's/raspberrypi/rpi-sta-02/g' /etc/hosts
