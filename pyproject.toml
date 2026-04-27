@@ -30,6 +30,7 @@ atf-status = "controller.atf_ctrl.cli:status"
 atf-agent = "agent.atf_agent.main:main"
 atf-inspector = "controller.atf_ctrl.inspector.server:main"
 atf-ap-collector = "controller.atf_ctrl.collector.ap_collector:main"
+atf-report = "controller.atf_ctrl.reporter.reporter:main"
 
 [project.optional-dependencies]
 dev = [

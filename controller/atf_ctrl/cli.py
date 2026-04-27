@@ -51,6 +51,33 @@ def run() -> None:
 
     # Print result
     _print_result(result)
+
+    # Auto-generate report if run succeeded
+    if result.ok:
+        try:
+            from controller.atf_ctrl.reporter.reporter import (
+                fetch_run_summary, fetch_throughput_samples, generate_report,
+            )
+            from controller.atf_ctrl.reporter.fairness import jains_fairness_index
+            from influxdb_client import InfluxDBClient
+            from controller.atf_ctrl.metrics.influx_writer import INFLUX_TOKEN, INFLUX_ORG, INFLUX_URL
+            import os
+            client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
+            summary = fetch_run_summary(client, result.run_id)
+            samples = fetch_throughput_samples(client, result.run_id)
+            report = generate_report(result.run_id, summary, samples)
+            out = f"reports/{result.run_id}.md"
+            os.makedirs("reports", exist_ok=True)
+            with open(out, "w") as f:
+                f.write(report)
+            throughputs = [r.throughput_mean_mbps for r in result.agent_results.values()
+                           if r.status == "complete" and r.throughput_mean_mbps]
+            jfi = jains_fairness_index(throughputs)
+            print(f"\n  Jain's Fairness Index: {jfi:.3f}  |  Report: {out}")
+            client.close()
+        except Exception as exc:
+            logging.getLogger("atf.cli").warning("Report generation failed (non-fatal): %s", exc)
+
     sys.exit(0 if result.ok else 1)
 
 
