@@ -1,6 +1,6 @@
 # Multi-Platform Support — Roadmap & Architecture
 
-ATF Validator agents run on heterogeneous client devices to mirror real-world Wi-Fi populations (Android phone + Linux laptop + IoT board, all sharing one AP). This document describes the current support matrix, the abstraction layer, and how to add a new platform.
+syncbench agents run on heterogeneous client devices to mirror real-world Wi-Fi populations (Android phone + Linux laptop + IoT board, all sharing one AP). This document describes the current support matrix, the abstraction layer, and how to add a new platform.
 
 > 中文版：[multi-platform-zh.md](multi-platform-zh.md)
 

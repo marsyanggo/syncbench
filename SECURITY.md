@@ -2,7 +2,7 @@
 
 ## Scope
 
-ATF Validator is a research/validation framework intended for controlled lab environments. It is not designed for production deployment.
+syncbench is a research/validation framework intended for controlled lab environments. It is not designed for production deployment.
 
 **Known non-production aspects:**
 - MQTT broker runs without authentication (allow_anonymous)

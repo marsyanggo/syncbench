@@ -1,4 +1,4 @@
-# Project Targets — ATF Validator
+# Project Targets — syncbench
 
 _Last updated: 2026-04-27 07:00 PDT_
 

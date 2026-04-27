@@ -1,6 +1,6 @@
 # Development Setup Guide
 
-This guide covers everything needed to set up the ATF Validator development environment on macOS (Apple Silicon).
+This guide covers everything needed to set up the syncbench development environment on macOS (Apple Silicon).
 
 ---
 
@@ -146,7 +146,7 @@ open http://localhost:3000
 # Login: admin / atf-grafana-2026
 ```
 
-> Grafana datasource (InfluxDB) and ATF Validator dashboard are auto-provisioned on first start via `deploy/grafana/`. No manual setup needed.
+> Grafana datasource (InfluxDB) and syncbench dashboard are auto-provisioned on first start via `deploy/grafana/`. No manual setup needed.
 
 ---
 
@@ -252,7 +252,7 @@ uv run atf-run scenarios/01_two_sta_equal.yaml    # 2 STA, 60s
 
 ### Watch real-time in Grafana
 
-1. Open `http://localhost:3000` → Dashboards → **ATF Validator**
+1. Open `http://localhost:3000` → Dashboards → **syncbench**
 2. Set time range to **Last 5 minutes**, auto-refresh **5s**
 3. Run `atf-run` — lines appear in real-time as each STA reports throughput
 

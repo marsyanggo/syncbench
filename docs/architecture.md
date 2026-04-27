@@ -1,4 +1,4 @@
-# ATF Validator — Architecture
+# syncbench — Architecture
 
 ## Component Diagram
 

@@ -1,6 +1,6 @@
 # 多平台支援 — 路線圖與架構
 
-ATF Validator 的 agent 設計支援異質客戶端裝置，反映真實世界的 Wi-Fi 群體（Android 手機 + Linux 筆電 + IoT 板，共用一個 AP）。本文說明目前支援矩陣、抽象層、以及如何加入新平台。
+syncbench 的 agent 設計支援異質客戶端裝置，反映真實世界的 Wi-Fi 群體（Android 手機 + Linux 筆電 + IoT 板，共用一個 AP）。本文說明目前支援矩陣、抽象層、以及如何加入新平台。
 
 > English: [multi-platform.md](multi-platform.md)
 

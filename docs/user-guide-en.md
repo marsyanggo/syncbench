@@ -1,4 +1,4 @@
-# ATF Validator — User Guide
+# syncbench — User Guide
 
 A complete guide to install, deploy, and operate the ATF (Airtime Fairness) Validator framework on a 1-AP / N-STA Wi-Fi testbed.
 
@@ -23,7 +23,7 @@ A complete guide to install, deploy, and operate the ATF (Airtime Fairness) Vali
 
 ## 1. What is this?
 
-ATF Validator is a platform-agnostic framework for validating IEEE 802.11 Airtime Fairness on consumer Wi-Fi hardware. It coordinates multiple Raspberry Pi stations to run synchronized iperf3 traffic against a single AP, measures per-station throughput and start-time jitter, and visualizes results in real-time on Grafana.
+syncbench is a platform-agnostic framework for validating IEEE 802.11 Airtime Fairness on consumer Wi-Fi hardware. It coordinates multiple Raspberry Pi stations to run synchronized iperf3 traffic against a single AP, measures per-station throughput and start-time jitter, and visualizes results in real-time on Grafana.
 
 **Phase 1 goals:**
 - One-command execution: `atf-run scenarios/01_two_sta_equal.yaml`
@@ -166,7 +166,7 @@ curl localhost:8086/health           # InfluxDB → {"status":"pass",...}
 docker compose ps                    # All three services Up
 ```
 
-> Grafana datasource and ATF Validator dashboard are auto-provisioned on first start. No manual setup needed.
+> Grafana datasource and syncbench dashboard are auto-provisioned on first start. No manual setup needed.
 
 Open `http://localhost:3000` (admin / atf-grafana-2026) to verify Grafana is up.
 
@@ -391,7 +391,7 @@ Ports are auto-assigned by the orchestrator — do not specify them in the YAML.
 
 ### Real-time Grafana dashboard
 
-1. Open `http://localhost:3000` → Dashboards → **ATF Validator**
+1. Open `http://localhost:3000` → Dashboards → **syncbench**
 2. Set time range: **Last 5 minutes**
 3. Set auto-refresh: **5s**
 4. Run `atf-run` — lines appear in real-time

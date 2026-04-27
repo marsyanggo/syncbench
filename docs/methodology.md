@@ -1,8 +1,8 @@
-# ATF Validator — Test Methodology
+# syncbench — Test Methodology
 
 ## Overview
 
-ATF Validator measures Wi-Fi Airtime Fairness (ATF) by running synchronized iperf3 sessions across multiple stations (STAs) and quantifying throughput distribution using Jain's Fairness Index.
+syncbench measures Wi-Fi Airtime Fairness (ATF) by running synchronized iperf3 sessions across multiple stations (STAs) and quantifying throughput distribution using Jain's Fairness Index.
 
 All measurements use only public kernel interfaces: `iw`, `nl80211`, `iperf3`, and Linux `debugfs`. No vendor-private APIs are used.
 

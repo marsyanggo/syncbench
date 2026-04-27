@@ -1,4 +1,4 @@
-# Contributing to ATF Validator
+# Contributing to syncbench
 
 Thank you for your interest in contributing.
 
