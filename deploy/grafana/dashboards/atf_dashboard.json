@@ -1,6 +1,6 @@
 {
   "title": "ATF Validator",
-  "uid": "atf-validator",
+  "uid": "syncbench",
   "schemaVersion": 38,
   "refresh": "5s",
   "time": { "from": "now-15m", "to": "now" },

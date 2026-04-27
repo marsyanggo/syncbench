@@ -12,7 +12,7 @@ export PATH="/opt/homebrew/bin:$PATH"
 RPI_IP="${1:?Usage: $0 <rpi-ip> [--agent-id <id>] [--broker <ip>]}"
 shift
 RPI_USER="pi"
-REMOTE_DIR="~/atf-validator"
+REMOTE_DIR="~/syncbench"
 SETUP_ARGS="$*"
 
 _step() { echo; echo "── $1"; }

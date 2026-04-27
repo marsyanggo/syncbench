@@ -97,8 +97,8 @@ These provide `mosquitto_pub` and `mosquitto_sub` for manual MQTT testing.
 ### Clone and install dependencies
 
 ```bash
-git clone git@github.com-personal:marsyanggo/atf-validator.git
-cd atf-validator
+git clone git@github.com-personal:marsyanggo/syncbench.git
+cd syncbench
 uv sync
 ```
 
@@ -198,11 +198,11 @@ ssh-copy-id -i ~/.ssh/id_ed25519_personal.pub <user>@raspberrypi.local
 # 1. Rsync repo to RPi
 rsync -av --exclude='.git' --exclude='.venv' --exclude='__pycache__' \
   -e "ssh -i ~/.ssh/id_ed25519_personal" \
-  /path/to/atf-validator/ <user>@raspberrypi.local:~/atf-validator/
+  /path/to/syncbench/ <user>@raspberrypi.local:~/syncbench/
 
 # 2. Run setup script on RPi (sets hostname, installs packages, configures systemd)
 ssh -i ~/.ssh/id_ed25519_personal <user>@raspberrypi.local \
-  "bash ~/atf-validator/scripts/setup-linux.sh --broker atf-broker.local --agent-id rpi-sta-01"
+  "bash ~/syncbench/scripts/setup-linux.sh --broker atf-broker.local --agent-id rpi-sta-01"
 ```
 
 `setup-linux.sh` will:
@@ -272,7 +272,7 @@ After changing agent code on Mac, push to all RPis:
 for ip in 192.168.1.221 192.168.1.233; do
   rsync -av --exclude='.git' --exclude='.venv' --exclude='__pycache__' \
     -e "ssh -i ~/.ssh/id_ed25519_personal" \
-    /path/to/atf-validator/ mars@$ip:~/atf-validator/
+    /path/to/syncbench/ mars@$ip:~/syncbench/
   ssh -i ~/.ssh/id_ed25519_personal mars@$ip "sudo systemctl restart atf-agent"
 done
 ```
@@ -285,4 +285,4 @@ done
 - Every commit is GPG-signed automatically
 - Use personal email only — never company email
 
-See [design_spec/atf-validator-phase1-spec.md](../design_spec/atf-validator-phase1-spec.md) §15 for full legal compliance rules.
+See [design_spec/syncbench-phase1-spec.md](../design_spec/syncbench-phase1-spec.md) §15 for full legal compliance rules.

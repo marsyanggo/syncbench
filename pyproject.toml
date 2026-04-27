@@ -1,7 +1,7 @@
 [project]
-name = "atf-validator"
+name = "syncbench"
 version = "0.1.0"
-description = "Wi-Fi Airtime Fairness validation framework for IEEE 802.11 networks"
+description = "Cross-platform synchronized multi-client network performance benchmark framework"
 authors = [{ name = "Mars Yang", email = "marsyanggo@gmail.com" }]
 license = { text = "Apache-2.0" }
 readme = "README.md"

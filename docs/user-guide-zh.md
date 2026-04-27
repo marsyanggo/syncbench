@@ -149,8 +149,8 @@ ping atf-broker.local  # 應該要通
 ### 4.4 Clone 並安裝
 
 ```bash
-git clone git@github.com:marsyanggo/atf-validator.git
-cd atf-validator
+git clone git@github.com:marsyanggo/syncbench.git
+cd syncbench
 uv sync
 ```
 
@@ -256,11 +256,11 @@ AGENT_ID=rpi-sta-01       # 每台 RPi 不同
 # 1. Rsync 程式碼
 rsync -av --exclude='.git' --exclude='.venv' --exclude='__pycache__' \
   -e "ssh -i ~/.ssh/id_ed25519_personal" \
-  ~/workspace/atf-validator/ mars@$RPI_IP:~/atf-validator/
+  ~/workspace/syncbench/ mars@$RPI_IP:~/syncbench/
 
 # 2. 跑 setup
 ssh -i ~/.ssh/id_ed25519_personal mars@$RPI_IP \
-  "bash ~/atf-validator/scripts/setup-linux.sh --broker atf-broker.local --agent-id $AGENT_ID"
+  "bash ~/syncbench/scripts/setup-linux.sh --broker atf-broker.local --agent-id $AGENT_ID"
 ```
 
 `setup-linux.sh` 會自動：
@@ -298,10 +298,10 @@ AGENT_ID=linux-nb-01
 
 rsync -av --exclude='.git' --exclude='.venv' --exclude='__pycache__' \
   -e "ssh -i ~/.ssh/id_ed25519_personal" \
-  ~/workspace/atf-validator/ user@$NB_IP:~/atf-validator/
+  ~/workspace/syncbench/ user@$NB_IP:~/syncbench/
 
 ssh -i ~/.ssh/id_ed25519_personal user@$NB_IP \
-  "bash ~/atf-validator/scripts/setup-linux.sh \
+  "bash ~/syncbench/scripts/setup-linux.sh \
      --broker atf-broker.local \
      --agent-id $AGENT_ID \
      --wifi-ssid atf_test_5g \
@@ -445,7 +445,7 @@ curl -s -X POST "http://localhost:8086/api/v2/query?org=atf" \
 for ip in 192.168.1.221 192.168.1.233; do
   rsync -av --exclude='.git' --exclude='.venv' --exclude='__pycache__' \
     -e "ssh -i ~/.ssh/id_ed25519_personal" \
-    ~/workspace/atf-validator/ mars@$ip:~/atf-validator/
+    ~/workspace/syncbench/ mars@$ip:~/syncbench/
   ssh -i ~/.ssh/id_ed25519_personal mars@$ip "sudo systemctl restart atf-agent"
 done
 ```

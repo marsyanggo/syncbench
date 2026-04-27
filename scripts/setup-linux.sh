@@ -3,7 +3,7 @@
 # Run this script ON the target device after rsync.
 #
 # Usage:
-#   bash ~/atf-validator/scripts/setup-linux.sh \
+#   bash ~/syncbench/scripts/setup-linux.sh \
 #     [--broker <host>] [--agent-id <id>] [--wifi-ssid <ssid>] [--wifi-pass <pass>]
 #
 # What it does:
