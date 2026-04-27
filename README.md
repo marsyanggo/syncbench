@@ -26,7 +26,11 @@ This framework validates IEEE 802.11 standard ATF behavior across multiple stati
 
 ## Getting Started
 
-See [docs/development-setup.md](docs/development-setup.md) for full prerequisites and setup instructions.
+Full user guide:
+- [English](docs/user-guide-en.md) — installation, topology, usage, troubleshooting
+- [中文](docs/user-guide-zh.md) — 安裝、拓撲、使用、疑難排解
+
+Developer setup notes: [docs/development-setup.md](docs/development-setup.md)
 
 **Quick summary of required tools:**
 - Homebrew + gnupg + pinentry-mac
