@@ -14,9 +14,8 @@ uv.lock
 # macOS
 .DS_Store
 
-# Data / reports (generated at runtime)
+# Data / reports (generated at runtime — raw data only)
 data/
-reports/
 
 # Secrets (never commit)
 .env
