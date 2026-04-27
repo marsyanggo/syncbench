@@ -10,4 +10,4 @@ datasources:
       organization: atf
       defaultBucket: atf_metrics
     secureJsonData:
-      token: t8yEFh2LzbKjw_N-FSw-kU0MJQPLKhziQ3RdJJDf4dEta82eB9WASaU0hlz1zBotvs8xmDPamMMKowDeKHlNbQ==
+      token: ${INFLUXDB_TOKEN}

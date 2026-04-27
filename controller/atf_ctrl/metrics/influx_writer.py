@@ -6,6 +6,7 @@ Two measurements:
 """
 
 import logging
+import os
 
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
@@ -14,10 +15,17 @@ from controller.atf_ctrl.orchestrator import AgentResult, RunResult
 
 logger = logging.getLogger("atf.metrics")
 
-INFLUX_URL = "http://localhost:8086"
-INFLUX_TOKEN = "t8yEFh2LzbKjw_N-FSw-kU0MJQPLKhziQ3RdJJDf4dEta82eB9WASaU0hlz1zBotvs8xmDPamMMKowDeKHlNbQ=="
-INFLUX_ORG = "atf"
-INFLUX_BUCKET = "atf_metrics"
+INFLUX_URL = os.environ.get("INFLUXDB_URL", "http://localhost:8086")
+INFLUX_TOKEN = os.environ.get("INFLUXDB_TOKEN", "")
+INFLUX_ORG = os.environ.get("INFLUXDB_ORG", "atf")
+INFLUX_BUCKET = os.environ.get("INFLUXDB_BUCKET", "atf_metrics")
+
+if not INFLUX_TOKEN:
+    raise RuntimeError(
+        "INFLUXDB_TOKEN is not set. "
+        "Get your token from http://localhost:8086 → Data → API Tokens, "
+        "then: export INFLUXDB_TOKEN=<your-token>"
+    )
 
 
 class InfluxWriter:
