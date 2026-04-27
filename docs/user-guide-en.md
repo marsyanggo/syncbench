@@ -374,6 +374,18 @@ The dashboard has three panels:
 - **Sync Offset per STA** (bottom-left): bar chart showing start-time jitter (target: < 100 ms)
 - **Live Avg Throughput per STA** (bottom-right): rolling average that updates every 5s during the test, persists after, switches when next test starts
 
+### AP airtime collector (optional)
+
+To capture per-station airtime usage from the AP's perspective (mt76 debugfs), run the AP collector in a separate terminal:
+
+```bash
+uv run atf-ap-collector --ap 192.168.1.1 --interval 1
+```
+
+It SSHes into the AP every second, reads `/sys/kernel/debug/ieee80211/phy1/netdev:phy1-ap0/stations/{MAC}/airtime`, computes RX/TX delta percentages, and writes to InfluxDB measurement `ap_airtime`. The MAC↔agent_id mapping is auto-built by subscribing to retained `atf/agent/+/status` messages — no config needed.
+
+Grafana panel **AP Airtime per STA (TX %)** shows the resulting curves alongside throughput.
+
 ### Inspector (live agent status)
 
 ```bash

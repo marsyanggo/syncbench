@@ -105,6 +105,7 @@ class ATFAgent:
                 "agent_id": self.agent_id,
                 "agent_version": VERSION,
                 "platform": self._platform.get_platform_info().os,
+                "wifi_mac": self._platform.get_wifi_mac(),
                 "current_run_id": self._current_run_id,
             },
             qos=1,

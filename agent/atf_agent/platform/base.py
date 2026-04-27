@@ -42,6 +42,11 @@ class PlatformAdapter(ABC):
         ...
 
     @abstractmethod
+    def get_wifi_mac(self) -> str | None:
+        """Return the Wi-Fi interface's MAC address (lowercase, colon-separated)."""
+        ...
+
+    @abstractmethod
     def get_ntp_offset_ms(self) -> float | None:
         """Return current NTP clock offset in milliseconds, or None if unknown."""
         ...

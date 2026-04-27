@@ -1,6 +1,6 @@
 # Project Targets — ATF Validator
 
-_Last updated: 2026-04-26 17:30 PDT_
+_Last updated: 2026-04-26 17:45 PDT_
 
 ---
 
@@ -134,8 +134,10 @@ _Last updated: 2026-04-26 17:30 PDT_
 
 ### Step 5 — AP collector
 
-- [ ] SSH into AX4200，讀 `/sys/kernel/debug/ieee80211/phy1/mt76/airtime`
-- [ ] AP collector 定期寫 InfluxDB（airtime per station）
+- [x] Agent 把 `wifi_mac` 加進 retained status payload，AP collector 自動建 MAC→agent_id 對應
+- [x] `controller/atf_ctrl/collector/ap_collector.py`：SSH 讀 mt76 debugfs（`stations/{mac}/airtime`），算 RX/TX delta %，寫 InfluxDB `ap_airtime` measurement
+- [x] `atf-ap-collector` CLI entry point（`--ap`、`--phy`、`--iface`、`--interval`、`--broker`）
+- [x] Grafana 新增 panel：AP Airtime per STA (TX %)，跟 throughput 並排對照
 
 ### Step 6 — 擴充到 3 台（選做，有第 3 台 RPi 再做）
 

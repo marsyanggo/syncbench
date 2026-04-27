@@ -37,6 +37,16 @@ class LinuxAdapter(PlatformAdapter):
             logger.warning("iw not available")
         return None
 
+    def get_wifi_mac(self) -> str | None:
+        iface = self.get_wifi_interface()
+        if not iface:
+            return None
+        try:
+            with open(f"/sys/class/net/{iface}/address") as f:
+                return f.read().strip().lower()
+        except OSError:
+            return None
+
     def get_link_info(self) -> LinkInfo:
         iface = self.get_wifi_interface()
         if not iface:

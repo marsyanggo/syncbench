@@ -50,6 +50,19 @@ class MacOSAdapter(PlatformAdapter):
             pass
         return None
 
+    def get_wifi_mac(self) -> str | None:
+        iface = self.get_wifi_interface()
+        if not iface:
+            return None
+        try:
+            out = subprocess.check_output(
+                ["ifconfig", iface], text=True, stderr=subprocess.DEVNULL
+            )
+            m = re.search(r"ether\s+([0-9a-f:]{17})", out)
+            return m.group(1).lower() if m else None
+        except (subprocess.SubprocessError, FileNotFoundError):
+            return None
+
     def get_link_info(self) -> LinkInfo:
         try:
             out = subprocess.check_output(

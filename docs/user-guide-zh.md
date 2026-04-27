@@ -374,6 +374,18 @@ Port 由 orchestrator 自動分配，**不要在 YAML 裡指定**。
 - **Sync Offset per STA**（左下）：bar chart 顯示起跑誤差（目標 < 100 ms）
 - **Live Avg Throughput per STA**（右下）：rolling average，測試中每 5 秒更新，結束後保留，下次測試自動切換
 
+### AP airtime collector（選用）
+
+要從 AP 視角記錄每台 STA 的 airtime 使用率（mt76 debugfs），在另一個 terminal 跑 AP collector：
+
+```bash
+uv run atf-ap-collector --ap 192.168.1.1 --interval 1
+```
+
+每秒 SSH 進 AP 讀 `/sys/kernel/debug/ieee80211/phy1/netdev:phy1-ap0/stations/{MAC}/airtime`，算 RX/TX delta 百分比，寫進 InfluxDB measurement `ap_airtime`。MAC↔agent_id 對應透過訂閱 retained `atf/agent/+/status` 自動建立，不需要設定檔。
+
+Grafana panel **AP Airtime per STA (TX %)** 顯示對應曲線，與 throughput 對照查看。
+
 ### Inspector（即時 agent 狀態）
 
 ```bash
