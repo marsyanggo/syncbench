@@ -161,14 +161,15 @@ class ATFAgent:
             logger.warning("prepare in state %s — ignoring", self._state)
             return
 
+        # Skip prepare if this agent isn't in the scenario
+        station_traffic = payload.get("station_traffic", {})
+        if self.agent_id not in station_traffic:
+            logger.info("Not in scenario (agents: %s), skipping prepare", list(station_traffic))
+            return
+
         self._set_state("PREPARING")
         self._current_run_id = payload.get("run_id")
-
-        # Extract this agent's traffic config from station_traffic map
-        station_traffic = payload.get("station_traffic", {})
-        self._traffic_config = station_traffic.get(self.agent_id)
-        if not self._traffic_config:
-            logger.warning("No traffic config for %s in prepare payload", self.agent_id)
+        self._traffic_config = station_traffic[self.agent_id]
 
         # Acknowledge
         self._bus.publish(
