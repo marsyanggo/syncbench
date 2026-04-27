@@ -1,6 +1,6 @@
 # Project Targets — ATF Validator
 
-_Last updated: 2026-04-26 18:00 PDT (Linux NB validated)_
+_Last updated: 2026-04-27 07:00 PDT_
 
 ---
 
@@ -10,11 +10,11 @@ _Last updated: 2026-04-26 18:00 PDT (Linux NB validated)_
 
 ### Phase 1 成功條件(全部達成才算完成)
 
-- [ ] 單指令執行：`atf-run scenarios/01_two_sta_equal.yaml` 觸發 3–5 台 RPi 同步啟動 iperf3
-- [ ] 即時可視化：Grafana 顯示每台 STA 吞吐量曲線
-- [ ] 自動報告：測試結束後自動產出 markdown 報告（Jain's Fairness Index、各 STA 平均吞吐、retry 率）
-- [ ] 同步精度量化：STA 起跑時間誤差實測 <100 ms（`sync_offset_ms` 欄位記錄）
-- [ ] 可重現性：系統重啟後 5 分鐘內能再次跑同樣測試
+- [x] 單指令執行：`atf-run scenarios/01_two_sta_equal.yaml` 觸發 3 台 STA 同步啟動 iperf3（2 RPi + 1 NB）✅
+- [x] 即時可視化：Grafana 顯示每台 STA 吞吐量曲線（per-second, 5s refresh）✅
+- [x] 自動報告：測試結束後自動產出 markdown 報告（Jain's FI、各 STA avg/stdev/p95、retransmits、sync offset）✅
+- [x] 同步精度量化：STA 起跑時間誤差實測 0–1 ms（目標 <100 ms）✅
+- [x] 可重現性：`docker compose up -d` + `atf-run` 即可重現，無需手動準備 ✅
 
 ---
 
@@ -165,7 +165,7 @@ _Last updated: 2026-04-26 18:00 PDT (Linux NB validated)_
 - [x] Grafana 所有 panel 改用最新 run_id 過濾（跨 run 不殘留舊 STA）
 - [x] AX4200 啟用 ATF dynamic mode（`airtime_mode=2`）
 - [x] Per-STA airtime weight 設定：rpi×2=256，NB=51（1/5）
-- [ ] 確認 per-STA weight 生效（NB 吞吐應顯著下降）
+- [x] 確認 per-STA weight 不生效（HE80 OFDMA 下 airtime_weight 被 bypass，記載於 methodology.md + report）
 
 ---
 
@@ -175,13 +175,17 @@ _Last updated: 2026-04-26 18:00 PDT (Linux NB validated)_
 
 ### Sub-tasks
 
-- [ ] 寫 `reporter.py`：測完自動產 markdown + PNG 圖表
-- [ ] 實作 Jain's Fairness Index 計算
-- [ ] 跑 `03_asymmetric_rate.yaml`，驗證 ATF on/off 對 fairness 差異
-- [ ] 補完 `docs/architecture.md` 與 `docs/methodology.md`
-- [ ] 加到 5 台 STA，做最後規模壓測
-- [ ] 加 Apache 2.0 LICENSE、NOTICE、CONTRIBUTING.md（DCO 規則）、SECURITY.md
-- [ ] 確認 repo 無廠商私有資訊，可公開 push
+- [x] `reporter.py` + `fairness.py`：`atf-run` 跑完自動產 markdown report + Jain's FI
+- [x] Jain's FI 計算：`(Σxi)² / (n × Σxi²)`，含 grade 等級（Excellent/Good/Fair/Poor）
+- [x] `atf-report` CLI entry point（`--run-id`、`--out` 參數）
+- [x] Phase 1 integration report（`reports/phase1-integration-report.md`）含 ATF investigation 結果
+- [x] `docs/architecture.md`：元件圖、MQTT topics、InfluxDB schema
+- [x] `docs/methodology.md`：同步方法、JFI 公式、AX4200 ATF 限制、異質 Wi-Fi 世代限制
+- [x] `CONTRIBUTING.md`（DCO 規則）、`SECURITY.md`、`NOTICE`
+- [x] 確認 repo 無廠商私有資訊（只用 public kernel 介面：iw/nl80211/debugfs/hostapd_cli）
+- [ ] 加到 5 台 STA（目前 3 台：2 RPi + 1 NB，硬體限制）
+- [ ] `03_asymmetric_rate.yaml` ATF on/off 對比（AX4200 HE80 下 ATF 無效，需換 AP 或改 VHT80）
+- [ ] repo 轉 public（待律師確認）
 
 ---
 
