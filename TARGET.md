@@ -159,6 +159,14 @@ _Last updated: 2026-04-26 18:00 PDT (Linux NB validated)_
 - [x] 3-STA 異質測試 PASSED：rpi 各 ~80 Mbps，NB ~413 Mbps，sync_offset 全部 0ms
 - [x] User guide 加 Ubuntu NOPASSWD sudo troubleshooting 段
 
+### Step 9 — ATF on/off 驗證準備
+
+- [x] Bug fix：agent prepare 跳過機制（不在 scenario 的 agent 保持 IDLE）
+- [x] Grafana 所有 panel 改用最新 run_id 過濾（跨 run 不殘留舊 STA）
+- [x] AX4200 啟用 ATF dynamic mode（`airtime_mode=2`）
+- [x] Per-STA airtime weight 設定：rpi×2=256，NB=51（1/5）
+- [ ] 確認 per-STA weight 生效（NB 吞吐應顯著下降）
+
 ---
 
 ## Goal: Week 4 — 報告產出 + 文件 + 規模到 5 台

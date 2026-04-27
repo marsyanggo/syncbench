@@ -20,7 +20,7 @@
         {
           "refId": "A",
           "datasource": { "type": "influxdb", "uid": "atf-influxdb" },
-          "query": "from(bucket: \"atf_metrics\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"throughput\")\n  |> filter(fn: (r) => r._field == \"throughput_mbps\")\n  |> group(columns: [\"agent_id\", \"run_id\"])"
+          "query": "latest_run = (from(bucket: \"atf_metrics\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"throughput\" and r._field == \"throughput_mbps\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> findRecord(fn: (key) => true, idx: 0)).run_id\n\nfrom(bucket: \"atf_metrics\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"throughput\" and r._field == \"throughput_mbps\")\n  |> filter(fn: (r) => r.run_id == latest_run)\n  |> filter(fn: (r) => exists r.agent_id and r.agent_id != \"\")\n  |> group(columns: [\"agent_id\"])"
         }
       ]
     },
@@ -46,7 +46,7 @@
         {
           "refId": "A",
           "datasource": { "type": "influxdb", "uid": "atf-influxdb" },
-          "query": "from(bucket: \"atf_metrics\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"run_summary\")\n  |> filter(fn: (r) => r._field == \"sync_offset_ms\")\n  |> group(columns: [\"agent_id\"])\n  |> last()"
+          "query": "latest_run = (from(bucket: \"atf_metrics\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"run_summary\" and r._field == \"sync_offset_ms\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> findRecord(fn: (key) => true, idx: 0)).run_id\n\nfrom(bucket: \"atf_metrics\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"run_summary\" and r._field == \"sync_offset_ms\")\n  |> filter(fn: (r) => r.run_id == latest_run)\n  |> group(columns: [\"agent_id\"])\n  |> last()"
         }
       ]
     },
@@ -66,7 +66,7 @@
         {
           "refId": "A",
           "datasource": { "type": "influxdb", "uid": "atf-influxdb" },
-          "query": "from(bucket: \"atf_metrics\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"ap_airtime\")\n  |> filter(fn: (r) => r._field == \"tx_pct\")\n  |> group(columns: [\"agent_id\"])"
+          "query": "latest_run = (from(bucket: \"atf_metrics\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"throughput\" and r._field == \"throughput_mbps\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> findRecord(fn: (key) => true, idx: 0)).run_id\n\nlatest_start = (from(bucket: \"atf_metrics\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"throughput\" and r._field == \"throughput_mbps\")\n  |> filter(fn: (r) => r.run_id == latest_run)\n  |> group()\n  |> sort(columns: [\"_time\"], desc: false)\n  |> limit(n: 1)\n  |> findRecord(fn: (key) => true, idx: 0))._time\n\nfrom(bucket: \"atf_metrics\")\n  |> range(start: latest_start)\n  |> filter(fn: (r) => r._measurement == \"ap_airtime\" and r._field == \"tx_pct\")\n  |> filter(fn: (r) => exists r.agent_id and r.agent_id != \"\")\n  |> group(columns: [\"agent_id\"])"
         }
       ]
     },
@@ -105,7 +105,7 @@
         {
           "refId": "A",
           "datasource": { "type": "influxdb", "uid": "atf-influxdb" },
-          "query": "from(bucket: \"atf_metrics\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"throughput\")\n  |> filter(fn: (r) => r._field == \"throughput_mbps\")\n  |> filter(fn: (r) => exists r.agent_id and r.agent_id != \"\")\n  |> group(columns: [\"agent_id\", \"run_id\"])\n  |> mean()\n  |> group(columns: [\"agent_id\"])\n  |> last(column: \"_value\")\n  |> keep(columns: [\"agent_id\", \"_value\"])"
+          "query": "latest_run = (from(bucket: \"atf_metrics\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"throughput\" and r._field == \"throughput_mbps\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> findRecord(fn: (key) => true, idx: 0)).run_id\n\nfrom(bucket: \"atf_metrics\")\n  |> range(start: -2h)\n  |> filter(fn: (r) => r._measurement == \"throughput\" and r._field == \"throughput_mbps\")\n  |> filter(fn: (r) => r.run_id == latest_run)\n  |> filter(fn: (r) => exists r.agent_id and r.agent_id != \"\")\n  |> group(columns: [\"agent_id\"])\n  |> mean()\n  |> keep(columns: [\"agent_id\", \"_value\"])"
         }
       ]
     }
