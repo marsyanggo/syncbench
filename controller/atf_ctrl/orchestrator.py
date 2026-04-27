@@ -138,6 +138,8 @@ class Orchestrator:
             missing = [a for a in expected if not self._acks.get(a, threading.Event()).is_set()]
             result.error = f"Prepare timeout — no ack from: {missing}"
             logger.error(result.error)
+            # Reset any agents that acked (stuck in ARMED) back to IDLE
+            self._bus.publish("atf/ctrl/broadcast/teardown", {"run_id": run_id})
             return result
 
 
