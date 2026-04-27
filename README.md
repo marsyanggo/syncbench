@@ -1,71 +1,151 @@
 # syncbench
 
-A cross-platform, open-source framework for synchronized multi-client network performance benchmarking. Coordinates heterogeneous client devices (Raspberry Pi, Linux laptops, etc.) to run simultaneous iperf3 traffic with sub-millisecond start-time synchronization, visualizes results in real-time on Grafana, and computes Jain's Fairness Index automatically.
+**A synchronized multi-endpoint benchmark orchestrator for heterogeneous testbeds.**
 
-Originally designed to validate Wi-Fi Airtime Fairness (ATF) on IEEE 802.11 networks — but the orchestration pipeline is transport-agnostic and works for any synchronized multi-endpoint traffic scenario.
+Coordinates real client devices — Raspberry Pi, Linux laptops, Android phones, and beyond — to launch traffic at the **same wall-clock instant** (sub-millisecond precision), streams per-client metrics into Grafana in real time, and computes fairness/aggregate statistics automatically.
 
-## Overview
+If you've ever needed to ask *"are these N clients really being treated the same?"* — and wished the answer didn't require either a $50K test chamber or a research-grade tool with a 2012 UI — syncbench is built for that gap.
 
-- **MQTT-orchestrated**: controller broadcasts synchronized start timestamps to all agents
-- **Sub-millisecond sync**: NTP-aware `sleep_until` (coarse sleep + busy-wait), measured 0–1 ms across ARM64/x86_64
-- **Cross-platform agents**: Raspberry Pi OS, Ubuntu/Debian laptops — same codebase via `PlatformAdapter` ABC
-- **Auto iperf3 management**: server processes spawned/killed per run, unique port per STA
-- **Real-time Grafana**: per-second throughput curves appear live during the test
-- **Auto report**: Jain's Fairness Index + markdown report generated on every run
+> **Status:** early preview, Phase 1 complete (Linux). Wi-Fi 6 (HE80 OFDMA) ATF case study included as the first reference scenario; the orchestrator itself is transport-agnostic.
 
-Uses only public kernel interfaces: `iw`, `nl80211`, `hostapd_cli`, Linux `debugfs`. No vendor-private APIs.
+---
 
-## Phase 1 Results (2 RPi + 1 Linux NB)
+## Why this exists
 
-| Scenario | Jain's FI | Sync Offset |
-|---|---|---|
-| 2-STA homogeneous (RPi×2) | **0.999** | 0 ms |
-| 3-STA heterogeneous (RPi×2 + NB Wi-Fi 6) | **0.642** | 0–1 ms |
+Most multi-client benchmarks fall into one of three buckets:
 
-Note: AX4200 (MT7986A/mt76) ATF is not effective in HE80 OFDMA mode — see [methodology](docs/methodology.md).
+- **`iperf3 -P N` from a single host** — easy, but everything runs from one NIC, so you're testing your own kernel scheduler, not the device under test
+- **Research tools like [Flent](https://flent.org/)** — accurate and battle-tested, but built for batch runs and post-hoc matplotlib plots; not designed for live dashboards or modern CI pipelines
+- **Commercial test chambers (Spirent octoBox, Candela LANforge)** — the gold standard, but six-figure entry price and built around virtual STAs rather than real heterogeneous clients
+
+syncbench targets a different point in the design space:
+
+| | iperf3 alone | Flent | Commercial | **syncbench** |
+|---|:---:|:---:|:---:|:---:|
+| Real heterogeneous clients | ❌ | partial | virtual STAs | ✅ |
+| Sub-millisecond start sync | ❌ | best-effort | ✅ | ✅ |
+| Real-time Grafana | ❌ | ❌ | proprietary | ✅ |
+| MQTT-orchestrated, CI-friendly | ❌ | ❌ | proprietary | ✅ |
+| Open source | ✅ | ✅ (GPL) | ❌ | ✅ (Apache 2.0) |
+| Cost | $0 | $0 | $$$$$ | $0 |
+
+The orchestration layer doesn't care what you're benchmarking. Wi-Fi airtime fairness was the first scenario because it's a brutal stress test of synchronization (any timing skew distorts the fairness metric), but the same primitives apply to any "N endpoints, one event, measure who got what" problem.
+
+---
+
+## What's in the box
+
+- **MQTT-orchestrated control plane** — a Mac/Linux controller broadcasts run parameters; agents on each client device subscribe and execute in lock-step
+- **Sub-millisecond synchronized start** — NTP-anchored `sleep_until` (coarse sleep + busy-wait); measured **0–1 ms** offset across mixed ARM64 / x86_64 hardware
+- **Pluggable platform adapters** — Raspberry Pi OS, Ubuntu/Debian today; macOS / Windows / Android on the Phase 2 roadmap. Same `PlatformAdapter` ABC, no scenario rewrites
+- **Real-time visualization** — InfluxDB + Grafana stack via `docker compose up`; per-second throughput curves render live during the test
+- **Automated reports** — Jain's Fairness Index, per-endpoint percentiles, and a markdown summary generated on every run
+- **Standards-only data path** — uses `iw`, `nl80211`, `hostapd_cli`, Linux `debugfs`, and the `iperf3 --json` interface. No vendor-private APIs anywhere
+
+---
+
+## Where this fits
+
+Use cases the framework is designed around:
+
+- **Fairness validation** for any shared-resource system (Wi-Fi airtime, Ethernet LACP, mesh backhaul, shared storage I/O)
+- **Multi-region / multi-client load tests** where coordinated start matters (CDN edge sync, distributed cache warm-up, multi-region S3 throughput)
+- **CI-style nightly regression** of network performance — drop scenarios in `scenarios/`, schedule the runner, send Grafana/markdown to your dashboard
+- **Engineering demos and bug reports** where "here's a live multi-client chart" beats a wall of CLI output
+- **Heterogeneous client mix testing** — mixing real RPis, laptops, and (eventually) phones is something virtual-STA testbeds can't do
+
+Use cases this is **not** trying to be:
+
+- A replacement for Flent's test catalog (RRUL, rtt_fair, bufferbloat suite — Flent does these excellently and you should use it)
+- A TR-398 certification rig — for vendor certification, use Spirent / Candela
+- A microsecond-precision packet generator — sync precision is sub-millisecond at the application layer, not at the PHY
+
+---
 
 ## Demo
 
 ### 2-STA: 2 × Raspberry Pi (Jain's FI = 0.999)
 
-https://github.com/user-attachments/assets/5e907b10-2de8-434c-bcf9-475a82c2dacc
+https://github.com/marsyanggo/syncbench/assets/50380018/5e907b10-2de8-434c-bcf9-475a82c2dacc
 
 ### 3-STA: 2 × Raspberry Pi + 1 × Linux NB (Jain's FI = 0.642)
 
-https://github.com/user-attachments/assets/c9923234-d7bc-45a8-9ecb-760eac045d38
+https://github.com/marsyanggo/syncbench/assets/50380018/c9923234-d7bc-45a8-9ecb-760eac045d38
 
 > Both runs: sync offset 0–1 ms, auto-generated report, real-time Grafana throughput curves.
+
+### Phase 1 reference results (Wi-Fi ATF case study)
+
+| Scenario | Jain's FI | Sync offset |
+|---|---|---|
+| 2-STA homogeneous (RPi × 2) | **0.999** | 0 ms |
+| 3-STA heterogeneous (RPi × 2 + NB Wi-Fi 6) | **0.642** | 0–1 ms |
+
+> Side-finding from the heterogeneous run: the AX4200 (MT7986A / mt76) does not enforce ATF in HE80 OFDMA mode — `airtime_weight` is bypassed by the OFDMA RU scheduler. See [methodology.md](docs/methodology.md) for the full write-up. This is exactly the kind of "the tool surfaced something the spec didn't predict" outcome the framework is designed to enable.
 
 ---
 
 ## Quick Start
 
 ```bash
-# Start infrastructure
+# Bring up the stack (Mosquitto + InfluxDB + Grafana)
 docker compose up -d
 
-# Run a test (auto-spawns iperf3 servers, syncs agents, writes Grafana, generates report)
+# Run a scenario — auto-spawns iperf3 servers, syncs agents, writes to Grafana, generates report
 uv run atf-run scenarios/01_two_sta_equal.yaml
 
-# View results
-open http://localhost:3000   # Grafana
-open http://localhost:8080   # Inspector (live agent status)
+# Watch it live
+open http://localhost:3000   # Grafana — per-endpoint throughput
+open http://localhost:8080   # Inspector — agent status & capabilities
 ```
+
+A scenario is a YAML file describing the endpoints, the synchronized event, and the success criteria. Anything you can express as "N agents, run this command at T+5 seconds, collect these metrics" can become a scenario.
+
+---
+
+## Architecture (one paragraph)
+
+A controller publishes to an MQTT broker; agents on each client device subscribe to broadcast topics and report back on per-agent topics. The controller computes a `start_unix_ms` timestamp 5 seconds in the future, broadcasts it once, and every agent independently sleeps to that exact instant before launching its workload. Per-second metrics flow into InfluxDB; the inspector and Grafana read from the same store. Full design: [docs/architecture.md](docs/architecture.md).
+
+---
 
 ## Documentation
 
-- **User guide:** [English](docs/user-guide-en.md) / [中文](docs/user-guide-zh.md)
+- **User guide:** [English](docs/user-guide-en.md) · [中文](docs/user-guide-zh.md)
 - **Architecture:** [docs/architecture.md](docs/architecture.md)
-- **Methodology + ATF findings:** [docs/methodology.md](docs/methodology.md)
-- **Multi-platform roadmap:** [docs/multi-platform.md](docs/multi-platform.md) / [中文](docs/multi-platform-zh.md)
+- **Methodology + Wi-Fi ATF case study:** [docs/methodology.md](docs/methodology.md)
+- **Cross-platform roadmap:** [docs/multi-platform.md](docs/multi-platform.md) · [中文](docs/multi-platform-zh.md)
 - **Dev setup:** [docs/development-setup.md](docs/development-setup.md)
+
+---
+
+## Roadmap
+
+**Phase 1 — done.** Linux agents, MQTT orchestration, sub-ms sync, Grafana, auto reports, Wi-Fi ATF case study.
+
+**Phase 2 — in progress.** macOS, Windows, and Android (via Termux) platform adapters. Goal: same scenario YAML runs unmodified across all four platforms.
+
+**Phase 3 — planned.** Scale to 10–50 endpoints. Broker tuning, scenario sharding, optional RF-isolation testbed integration.
+
+**Phase 4 — planned.** Non-Wi-Fi reference scenarios (multi-region cloud, mesh backhaul, distributed cache), MQTT auth + TLS, public-release hardening.
+
+Contributions welcome — especially scenario contributions for non-Wi-Fi domains. If you've got a "fairness across N clients" question in your stack, opening an issue with the use case is the most useful thing you can do right now.
+
+---
+
+## Acknowledgements
+
+This project stands on the shoulders of the bufferbloat / make-wifi-fast community, particularly the work of Toke Høiland-Jørgensen on mac80211 airtime fairness and the [Flent](https://flent.org/) network tester. syncbench's data path reads the same `debugfs` interfaces that Flent's `wifistats_iterate` does — the difference is in the orchestration model and the visualization layer, not in the underlying measurement.
+
+---
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE)
+[Apache 2.0](LICENSE) — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 ## References
 
 - IEEE 802.11-2020
 - [Linux mac80211](https://wireless.wiki.kernel.org/en/developers/documentation/mac80211)
 - [OpenWrt](https://openwrt.org) · [iperf3](https://iperf.fr) · [mt76](https://github.com/openwrt/mt76)
+- [Flent: The FLExible Network Tester](https://flent.org/) — prior art and intellectual debt
