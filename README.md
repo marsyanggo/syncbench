@@ -6,7 +6,7 @@ Coordinates real client devices — Raspberry Pi, Linux laptops, Android phones,
 
 If you've ever needed to ask *"are these N clients really being treated the same?"* — and wished the answer didn't require either a $50K test chamber or a research-grade tool with a 2012 UI — syncbench is built for that gap.
 
-> **Status:** early preview, Phase 1 complete (Linux). Wi-Fi 6 (HE80 OFDMA) ATF case study included as the first reference scenario; the orchestrator itself is transport-agnostic.
+> **Status:** Phase 2 complete. Integrated web UI — select devices, start run, and watch live throughput curves all from one page. Wi-Fi 6 (HE80 OFDMA) ATF case study included as the first reference scenario; the orchestrator itself is transport-agnostic.
 
 ---
 
@@ -24,7 +24,7 @@ syncbench targets a different point in the design space:
 |---|:---:|:---:|:---:|:---:|
 | Real heterogeneous clients | ❌ | partial | virtual STAs | ✅ |
 | Sub-millisecond start sync | ❌ | best-effort | ✅ | ✅ |
-| Real-time Grafana | ❌ | ❌ | proprietary | ✅ |
+| Real-time live chart | ❌ | ❌ | proprietary | ✅ |
 | MQTT-orchestrated, CI-friendly | ❌ | ❌ | proprietary | ✅ |
 | Open source | ✅ | ✅ (GPL) | ❌ | ✅ (Apache 2.0) |
 | Cost | $0 | $0 | $$$$$ | $0 |
@@ -38,8 +38,9 @@ The orchestration layer doesn't care what you're benchmarking. Wi-Fi airtime fai
 - **MQTT-orchestrated control plane** — a Mac/Linux controller broadcasts run parameters; agents on each client device subscribe and execute in lock-step
 - **Sub-millisecond synchronized start** — NTP-anchored `sleep_until` (coarse sleep + busy-wait); measured **0–1 ms** offset across mixed ARM64 / x86_64 hardware
 - **Pluggable platform adapters** — Raspberry Pi OS, Ubuntu/Debian today; macOS / Windows / Android on the Phase 2 roadmap. Same `PlatformAdapter` ABC, no scenario rewrites
-- **Real-time visualization** — InfluxDB + Grafana stack via `docker compose up`; per-second throughput curves render live during the test
+- **Integrated web UI** — built-in Inspector at `localhost:8080`; select devices, start a run, and watch live per-second throughput curves — no separate Grafana tab needed
 - **Automated reports** — Jain's Fairness Index, per-endpoint percentiles, and a markdown summary generated on every run
+- **Wi-Fi band detection** — each agent reports its connected band (2.4G / 5G / 6G) derived from the platform adapter; visible in the Inspector device list
 - **Standards-only data path** — uses `iw`, `nl80211`, `hostapd_cli`, Linux `debugfs`, and the `iperf3 --json` interface. No vendor-private APIs anywhere
 
 ---
@@ -76,7 +77,7 @@ https://github.com/marsyanggo/syncbench/assets/50380018/c9923234-d7bc-45a8-9ecb-
 
 https://github.com/user-attachments/assets/2159f23a-fef3-485e-b90e-8fb26ed8f379
 
-> All runs: sync offset 0 ms, auto-generated report, real-time Grafana throughput curves.
+> All runs: sync offset 0 ms, auto-generated report, real-time throughput curves in the Inspector UI.
 
 ### Phase 1 reference results (Wi-Fi ATF case study)
 
@@ -93,16 +94,27 @@ https://github.com/user-attachments/assets/2159f23a-fef3-485e-b90e-8fb26ed8f379
 ## Quick Start
 
 ```bash
-# Bring up the stack (Mosquitto + InfluxDB + Grafana)
+# Bring up the stack (Mosquitto + InfluxDB)
 docker compose up -d
 
-# Run a scenario — auto-spawns iperf3 servers, syncs agents, writes to Grafana, generates report
-uv run atf-run scenarios/01_two_sta_equal.yaml
-
-# Watch it live
-open http://localhost:3000   # Grafana — per-endpoint throughput
-open http://localhost:8080   # Inspector — agent status & capabilities
+# Start the Inspector — device selector, run control, and live chart in one page
+uv run atf-inspector
+open http://localhost:8080
 ```
+
+Select your online devices, set a duration, and press **Start Run**. Live per-second throughput curves appear as the test runs, Jain's Fairness Index and a markdown report are generated on completion.
+
+Or run a scenario directly from the CLI:
+
+```bash
+uv run atf-run scenarios/04_six_sta_mixed.yaml
+```
+
+> **Grafana** is optional — useful for historical run comparison and advanced queries:
+> ```bash
+> docker compose --profile monitoring up -d grafana
+> open http://localhost:3000   # admin / atf-grafana-2026
+> ```
 
 A scenario is a YAML file describing the endpoints, the synchronized event, and the success criteria. Anything you can express as "N agents, run this command at T+5 seconds, collect these metrics" can become a scenario.
 
@@ -110,7 +122,7 @@ A scenario is a YAML file describing the endpoints, the synchronized event, and 
 
 ## Architecture (one paragraph)
 
-A controller publishes to an MQTT broker; agents on each client device subscribe to broadcast topics and report back on per-agent topics. The controller computes a `start_unix_ms` timestamp 5 seconds in the future, broadcasts it once, and every agent independently sleeps to that exact instant before launching its workload. Per-second metrics flow into InfluxDB; the inspector and Grafana read from the same store. Full design: [docs/architecture.md](docs/architecture.md).
+A controller publishes to an MQTT broker; agents on each client device subscribe to broadcast topics and report back on per-agent topics. The controller computes a `start_unix_ms` timestamp 5 seconds in the future, broadcasts it once, and every agent independently sleeps to that exact instant before launching its workload. Per-second metrics stream via MQTT into the Inspector's live chart; results are also written to InfluxDB for historical analysis. Full design: [docs/architecture.md](docs/architecture.md).
 
 ---
 
@@ -126,13 +138,15 @@ A controller publishes to an MQTT broker; agents on each client device subscribe
 
 ## Roadmap
 
-**Phase 1 — done.** Linux agents, MQTT orchestration, sub-ms sync, Grafana, auto reports, Wi-Fi ATF case study.
+**Phase 1 — done.** Linux agents (RPi + x86_64), MQTT orchestration, sub-ms sync, InfluxDB, auto reports with Jain's FI, Wi-Fi ATF case study up to 6 STA.
 
-**Phase 2 — in progress.** macOS, Windows, and Android (via Termux) platform adapters. Goal: same scenario YAML runs unmodified across all four platforms.
+**Phase 2 — done.** Integrated web UI: device selector, one-click run, native Chart.js live throughput, Jain's FI in-browser. Grafana demoted to optional. Per-device Wi-Fi band detection (2.4G / 5G / 6G).
 
-**Phase 3 — planned.** Scale to 10–50 endpoints. Broker tuning, scenario sharding, optional RF-isolation testbed integration.
+**Phase 3 — planned.** macOS, Windows, and Android (via Termux) platform adapters. Goal: same scenario YAML runs unmodified across all four platforms.
 
-**Phase 4 — planned.** Non-Wi-Fi reference scenarios (multi-region cloud, mesh backhaul, distributed cache), MQTT auth + TLS, public-release hardening.
+**Phase 4 — planned.** Scale to 10–50 endpoints. Broker tuning, scenario sharding, optional RF-isolation testbed integration.
+
+**Phase 5 — planned.** Non-Wi-Fi reference scenarios (multi-region cloud, mesh backhaul, distributed cache), MQTT auth + TLS, public-release hardening.
 
 Contributions welcome — especially scenario contributions for non-Wi-Fi domains. If you've got a "fairness across N clients" question in your stack, opening an issue with the use case is the most useful thing you can do right now.
 
