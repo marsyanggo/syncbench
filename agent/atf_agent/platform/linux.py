@@ -1,12 +1,15 @@
 import logging
 import platform
 import re
+import shutil
 import subprocess
 
 from .base import LinkInfo, PlatformAdapter, PlatformInfo
 
 logger = logging.getLogger(__name__)
 
+# iw may live in /usr/sbin which isn't always in PATH for systemd services
+_IW = shutil.which("iw") or shutil.which("iw", path="/usr/sbin:/sbin:/usr/bin:/bin") or "iw"
 
 class LinuxAdapter(PlatformAdapter):
     """Linux implementation — targets Raspberry Pi 4 running Raspberry Pi OS."""
@@ -28,7 +31,7 @@ class LinuxAdapter(PlatformAdapter):
     def get_wifi_interface(self) -> str | None:
         try:
             out = subprocess.check_output(
-                ["iw", "dev"], text=True, stderr=subprocess.DEVNULL
+                [_IW, "dev"], text=True, stderr=subprocess.DEVNULL
             )
             for line in out.splitlines():
                 if "Interface" in line:
@@ -53,7 +56,7 @@ class LinuxAdapter(PlatformAdapter):
             return LinkInfo(connected=False)
         try:
             out = subprocess.check_output(
-                ["iw", "dev", iface, "link"],
+                [_IW, "dev", iface, "link"],
                 text=True,
                 stderr=subprocess.DEVNULL,
             )

@@ -11,6 +11,7 @@ class AgentState:
     agent_version: str = "unknown"
     ntp_offset_ms: float | None = None
     ntp_synced: bool = False
+    band: str = "unknown"
     last_seen: float = field(default_factory=time.time)
 
     @property
@@ -39,15 +40,22 @@ class InspectorState:
             a.state = payload.get("state", a.state)
             a.ntp_offset_ms = payload.get("ntp_offset_ms")
             a.ntp_synced = payload.get("ntp_synced", False)
+            a.band = payload.get("band", a.band)
             a.last_seen = time.time()
 
     def update_status(self, agent_id: str, payload: dict) -> None:
         with self._lock:
             a = self._agents.setdefault(agent_id, AgentState(agent_id=agent_id))
-            a.state = payload.get("state", a.state)
             a.platform = payload.get("platform", a.platform)
             a.agent_version = payload.get("agent_version", a.agent_version)
-            a.last_seen = time.time()
+            # Only update state from status if it's an explicit OFFLINE signal
+            # (LWT). For online states, rely on heartbeat to keep last_seen fresh.
+            state = payload.get("state", "")
+            if state == "OFFLINE":
+                a.state = "OFFLINE"
+                a.last_seen = 0.0  # force is_online → False immediately
+            elif state:
+                a.state = state
 
     def all_agents(self) -> list[AgentState]:
         with self._lock:

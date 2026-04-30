@@ -1,96 +1,522 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ATF Inspector</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'SF Mono', 'Menlo', monospace; background: #0f1117; color: #e2e8f0; padding: 24px; }
-    h1 { font-size: 18px; font-weight: 600; color: #7dd3fc; margin-bottom: 4px; }
-    .subtitle { font-size: 12px; color: #64748b; margin-bottom: 24px; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    thead th {
-      text-align: left; padding: 8px 12px;
-      border-bottom: 1px solid #1e293b;
-      color: #94a3b8; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
-    }
-    tbody tr { border-bottom: 1px solid #1e293b; transition: background .1s; }
-    tbody tr:hover { background: #1e293b; }
-    td { padding: 10px 12px; }
-    .online  { color: #4ade80; }
-    .offline { color: #475569; }
-    .state   { color: #fbbf24; font-size: 11px; letter-spacing: .05em; }
-    .ntp     { color: #818cf8; }
-    .platform { color: #94a3b8; font-size: 11px; }
-    .agent-id { color: #e2e8f0; font-weight: 500; }
-    #count { font-size: 12px; color: #64748b; margin-top: 16px; }
-    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
-    .dot.online  { background: #4ade80; box-shadow: 0 0 6px #4ade80; }
-    .dot.offline { background: #334155; }
-  </style>
+<meta charset="UTF-8">
+<title>syncbench inspector</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0f1117; color: #e2e8f0; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* Header */
+  header { background: #1a1d27; border-bottom: 1px solid #2d3148; padding: 12px 20px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+  header h1 { font-size: 15px; font-weight: 600; color: #7c8cf8; letter-spacing: 0.05em; }
+  #broker-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px #22c55e; flex-shrink: 0; }
+  #broker-info { color: #64748b; font-size: 11px; }
+
+  /* Layout */
+  .main { display: grid; grid-template-columns: 220px 1fr 1fr; flex: 1; overflow: hidden; }
+
+  /* Shared panel style */
+  .panel { display: flex; flex-direction: column; overflow: hidden; }
+  .panel-title { padding: 14px 16px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; border-bottom: 1px solid #2d3148; flex-shrink: 0; }
+
+  /* Left: Devices */
+  .panel-agents { background: #13151f; border-right: 1px solid #2d3148; }
+  #agent-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .agent-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; margin-bottom: 4px; cursor: pointer; transition: background 0.15s; border: 1px solid transparent; user-select: none; }
+  .agent-item:hover { background: #1e2235; }
+  .agent-item.selected { background: #1e2a4a; border-color: #3b4fd8; }
+  .agent-item.offline-item { opacity: 0.4; cursor: not-allowed; }
+  .agent-item input[type=checkbox] { accent-color: #7c8cf8; width: 14px; height: 14px; cursor: pointer; flex-shrink: 0; }
+  .agent-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .agent-dot.online { background: #22c55e; box-shadow: 0 0 4px #22c55e88; }
+  .agent-dot.offline { background: #475569; }
+  .agent-info { flex: 1; min-width: 0; }
+  .agent-id { font-size: 12px; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .agent-meta { font-size: 10px; color: #64748b; margin-top: 1px; }
+  .agent-mbps { font-size: 12px; font-weight: 600; text-align: right; min-width: 52px; color: #2d3148; transition: color 0.3s; }
+  .agent-mbps.active { }
+
+  /* Run controls */
+  .run-controls { padding: 12px; border-top: 1px solid #2d3148; flex-shrink: 0; }
+  .duration-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .duration-row label { font-size: 11px; color: #64748b; white-space: nowrap; }
+  .duration-row input { background: #1e2235; border: 1px solid #2d3148; color: #e2e8f0; border-radius: 4px; padding: 4px 8px; width: 60px; font-size: 12px; font-family: inherit; }
+  .btn-run { width: 100%; padding: 9px; background: #3b4fd8; color: #fff; border: none; border-radius: 6px; font-size: 12px; font-family: inherit; font-weight: 600; cursor: pointer; letter-spacing: 0.03em; transition: background 0.15s; }
+  .btn-run:hover:not(:disabled) { background: #4f63e8; }
+  .btn-run:disabled { background: #2d3148; color: #475569; cursor: not-allowed; }
+  #selected-count { font-size: 10px; color: #64748b; text-align: center; margin-top: 6px; }
+
+  /* Middle: Run status */
+  .panel-status { background: #0f1117; border-right: 1px solid #2d3148; }
+  .run-status-box { padding: 16px; border-bottom: 1px solid #2d3148; flex-shrink: 0; }
+  .phase-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .phase-badge { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; }
+  .phase-idle     { background: #1e2235; color: #475569; border: 1px solid #2d3148; }
+  .phase-preparing{ background: #1e3a5f; color: #60a5fa; border: 1px solid #1d4ed8; }
+  .phase-running  { background: #14532d; color: #4ade80; border: 1px solid #166534; }
+  .phase-collecting{ background: #3b2800; color: #fbbf24; border: 1px solid #92400e; }
+  .phase-done     { background: #14532d; color: #4ade80; border: 1px solid #166534; }
+  .phase-error    { background: #450a0a; color: #f87171; border: 1px solid #7f1d1d; }
+  #run-id-display { font-size: 10px; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .progress-bar-wrap { background: #1e2235; border-radius: 4px; height: 4px; margin-bottom: 10px; overflow: hidden; }
+  #progress-bar { height: 100%; background: linear-gradient(90deg, #3b4fd8, #7c8cf8); border-radius: 4px; width: 0%; transition: width 1s linear; }
+  #elapsed-display { font-size: 11px; color: #64748b; }
+
+  /* Results table */
+  .results-scroll { flex: 1; overflow-y: auto; }
+  #result-table { width: 100%; border-collapse: collapse; }
+  #result-table th { text-align: left; font-size: 10px; color: #64748b; padding: 6px 10px; border-bottom: 1px solid #2d3148; letter-spacing: 0.08em; text-transform: uppercase; position: sticky; top: 0; background: #0f1117; }
+  #result-table td { padding: 7px 10px; font-size: 12px; border-bottom: 1px solid #1e2235; }
+  #result-table tr:hover td { background: #1a1d27; }
+  .td-agent { color: #7c8cf8; }
+  .td-good  { color: #4ade80; }
+  .td-warn  { color: #fbbf24; }
+  .td-num   { color: #e2e8f0; }
+  .td-dim   { color: #475569; }
+  #jfi-row { padding: 12px 10px; display: flex; align-items: center; gap: 10px; border-top: 1px solid #2d3148; flex-shrink: 0; }
+  #jfi-label { font-size: 11px; color: #64748b; }
+  #jfi-value { font-size: 20px; font-weight: 700; color: #4ade80; }
+  #jfi-grade { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+  .grade-excellent { background: #14532d; color: #4ade80; border: 1px solid #166534; }
+  .grade-good      { background: #14532d; color: #4ade80; border: 1px solid #166534; }
+  .grade-fair      { background: #3b2800; color: #fbbf24; border: 1px solid #92400e; }
+  .grade-poor      { background: #450a0a; color: #f87171; border: 1px solid #7f1d1d; }
+
+  /* Right: Chart */
+  .panel-chart { background: #0f1117; }
+  .chart-title-row { display: flex; align-items: center; justify-content: space-between; }
+  .chart-subtitle { font-size: 10px; color: #475569; font-weight: 400; }
+  .chart-wrap { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; min-height: 0; }
+  #throughput-chart { flex: 1; min-height: 0; }
+  #chart-legend { display: flex; flex-wrap: wrap; gap: 10px; flex-shrink: 0; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; cursor: pointer; padding: 2px 4px; border-radius: 3px; transition: background 0.1s; }
+  .legend-item:hover { background: #1e2235; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2d3148; border-radius: 2px; }
+</style>
 </head>
 <body>
-  <h1>syncbench — Environment Status</h1>
-  <div class="subtitle">Live agent dashboard · auto-refreshes via SSE</div>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Status</th>
-        <th>Agent ID</th>
-        <th>State</th>
-        <th>NTP Offset</th>
-        <th>Platform</th>
-      </tr>
-    </thead>
-    <tbody id="agent-table">
-      {% for a in agents %}
-      <tr>
-        <td>
-          <span class="dot {{ 'online' if a.is_online else 'offline' }}"></span>
-          <span class="{{ 'online' if a.is_online else 'offline' }}">{{ 'online' if a.is_online else 'offline' }}</span>
-        </td>
-        <td class="agent-id">{{ a.agent_id }}</td>
-        <td class="state">{{ a.state }}</td>
-        <td class="ntp">{{ a.ntp_display }}</td>
-        <td class="platform">{{ a.platform }}</td>
-      </tr>
-      {% else %}
-      <tr><td colspan="5" style="color:#475569;padding:20px 12px">No agents detected yet…</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  <div id="count"></div>
+<header>
+  <div id="broker-dot"></div>
+  <h1>syncbench inspector</h1>
+  <span id="broker-info">connecting…</span>
+</header>
 
-  <script>
-    const tbody = document.getElementById('agent-table');
-    const count = document.getElementById('count');
-    const es = new EventSource('/events');
+<div class="main">
 
-    es.onmessage = (e) => {
-      const agents = JSON.parse(e.data);
-      if (agents.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="color:#475569;padding:20px 12px">No agents detected yet…</td></tr>';
-        count.textContent = '';
-        return;
+  <!-- LEFT: Device selector -->
+  <div class="panel panel-agents">
+    <div class="panel-title">Devices</div>
+    <div id="agent-list"></div>
+    <div class="run-controls">
+      <div class="duration-row">
+        <label>Duration</label>
+        <input type="number" id="duration-input" value="60" min="10" max="600">
+        <span style="color:#64748b;font-size:11px">sec</span>
+      </div>
+      <button class="btn-run" id="btn-run" disabled>▶  Start Run</button>
+      <div id="selected-count">0 devices selected</div>
+    </div>
+  </div>
+
+  <!-- MIDDLE: Run status + results -->
+  <div class="panel panel-status">
+    <div class="panel-title">Run Status</div>
+    <div class="run-status-box">
+      <div class="phase-row">
+        <span class="phase-badge phase-idle" id="phase-badge">IDLE</span>
+        <span id="run-id-display">—</span>
+      </div>
+      <div class="progress-bar-wrap">
+        <div id="progress-bar"></div>
+      </div>
+      <div id="elapsed-display">—</div>
+    </div>
+    <div class="results-scroll">
+      <table id="result-table">
+        <thead>
+          <tr>
+            <th>Agent</th>
+            <th>Avg Mbps</th>
+            <th>±</th>
+            <th>Retrans</th>
+            <th>Sync</th>
+          </tr>
+        </thead>
+        <tbody id="result-tbody">
+          <tr><td colspan="5" class="td-dim" style="padding:20px 10px">No run yet — select devices and press Start Run</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="jfi-row" style="display:none">
+      <span id="jfi-label">Jain's Fairness Index</span>
+      <span id="jfi-value">—</span>
+      <span id="jfi-grade" class="jfi-grade">—</span>
+    </div>
+  </div>
+
+  <!-- RIGHT: Chart -->
+  <div class="panel panel-chart">
+    <div class="panel-title chart-title-row">
+      <span>Throughput (Mbps)</span>
+      <span class="chart-subtitle" id="chart-subtitle">—</span>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="throughput-chart"></canvas>
+      <div id="chart-legend"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// ─── Color generator (golden ratio hue — no repeats up to 1000+ agents) ──────
+const AGENT_COLORS = {};  // agent_id → color
+let _colorSeq = 0;
+
+function _nextColor() {
+  // Golden ratio conjugate: consecutive hues are maximally separated
+  const GOLDEN = 0.618033988749895;
+  const hue = (_colorSeq * GOLDEN * 360) % 360;
+  _colorSeq++;
+  return `hsl(${hue.toFixed(1)}, 72%, 62%)`;
+}
+
+function agentColor(id) {
+  if (!AGENT_COLORS[id]) AGENT_COLORS[id] = _nextColor();
+  return AGENT_COLORS[id];
+}
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let agents = [];          // [{agent_id, online, platform, ntp_display}, ...]
+let selected = new Set();
+let runId = null;
+let runEventSource = null;
+let elapsedSec = 0;
+let durationSec = 60;
+let elapsedTimer = null;
+let rollingData = {};     // agent_id → {sum, count}
+let firstSampleTsMs = null;  // ts_ms of first sample — used as x-axis origin
+
+// ─── Chart ────────────────────────────────────────────────────────────────────
+const ctx = document.getElementById('throughput-chart').getContext('2d');
+const chart = new Chart(ctx, {
+  type: 'line',
+  data: { labels: [], datasets: [] },
+  options: {
+    animation: false,
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#1a1d27',
+        borderColor: '#2d3148',
+        borderWidth: 1,
+        titleColor: '#94a3b8',
+        bodyColor: '#e2e8f0',
+        callbacks: {
+          label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(1) ?? '—'} Mbps`,
+        }
       }
-      tbody.innerHTML = agents.map(a => `
-        <tr>
-          <td>
-            <span class="dot ${a.online ? 'online' : 'offline'}"></span>
-            <span class="${a.online ? 'online' : 'offline'}">${a.online ? 'online' : 'offline'}</span>
-          </td>
-          <td class="agent-id">${a.agent_id}</td>
-          <td class="state">${a.state}</td>
-          <td class="ntp">${a.ntp_display}</td>
-          <td class="platform">${a.platform}</td>
-        </tr>`).join('');
-      const online = agents.filter(a => a.online).length;
-      count.textContent = `${online} / ${agents.length} agents online`;
-    };
+    },
+    scales: {
+      x: { grid: { color: '#1e2235' }, ticks: { color: '#475569', font: { size: 10 }, maxTicksLimit: 8 } },
+      y: { grid: { color: '#1e2235' }, ticks: { color: '#475569', font: { size: 10 }, callback: v => v + ' M' }, min: 0 }
+    }
+  }
+});
 
-    es.onerror = () => count.textContent = 'SSE connection lost — retrying…';
-  </script>
+function initChart(agentIds) {
+  agentIds.forEach(id => agentColor(id));  // ensure colors assigned
+  chart.data.labels = [];
+  chart.data.datasets = agentIds.map(id => ({
+    label: id,
+    data: [],
+    borderColor: agentColor(id),
+    backgroundColor: agentColor(id).replace('hsl', 'hsla').replace(')', ', 0.1)'),
+    borderWidth: 2,
+    pointRadius: 0,
+    tension: 0.3,
+    fill: false,
+    spanGaps: true,
+  }));
+  chart.update('none');
+
+  const legend = document.getElementById('chart-legend');
+  legend.innerHTML = agentIds.map(id =>
+    `<div class="legend-item"><div class="legend-dot" style="background:${agentColor(id)}"></div>${id}</div>`
+  ).join('');
+}
+
+function pushChartSample(agentId, throughputMbps, tsSec) {
+  const label = tsSec + 's';
+  if (!chart.data.labels.includes(label)) {
+    chart.data.labels.push(label);
+    chart.data.datasets.forEach(ds => ds.data.push(null));
+  }
+  const labelIdx = chart.data.labels.indexOf(label);
+  const ds = chart.data.datasets.find(d => d.label === agentId);
+  if (ds) ds.data[labelIdx] = throughputMbps;
+
+  if (chart.data.labels.length > 120) {
+    chart.data.labels.shift();
+    chart.data.datasets.forEach(d => d.data.shift());
+  }
+  chart.update('none');
+}
+
+// ─── Agent list (SSE /events) ─────────────────────────────────────────────────
+const agentEs = new EventSource('/events');
+agentEs.onmessage = e => {
+  agents = JSON.parse(e.data);
+  renderAgentList();
+  const online = agents.filter(a => a.online).length;
+  document.getElementById('broker-info').textContent =
+    `broker: localhost:1883 · ${online} agent${online !== 1 ? 's' : ''} online`;
+};
+agentEs.onerror = () => {
+  document.getElementById('broker-info').textContent = 'SSE connection lost — retrying…';
+  document.getElementById('broker-dot').style.background = '#f87171';
+};
+
+function renderAgentList() {
+  const list = document.getElementById('agent-list');
+  if (agents.length === 0) {
+    list.innerHTML = '<div style="padding:16px;color:#475569;font-size:11px">No agents detected yet…</div>';
+    return;
+  }
+  list.innerHTML = agents.map(a => {
+    const color = a.online ? agentColor(a.agent_id) : '#475569';
+    const isSel = selected.has(a.agent_id);
+    const isRunning = runId !== null;
+    return `
+    <div class="agent-item ${isSel ? 'selected' : ''} ${!a.online ? 'offline-item' : ''}"
+         onclick="${a.online && !isRunning ? `toggleAgent('${a.agent_id}')` : ''}">
+      <input type="checkbox" ${isSel ? 'checked' : ''} ${!a.online || isRunning ? 'disabled' : ''}
+             onclick="event.stopPropagation(); ${a.online && !isRunning ? `toggleAgent('${a.agent_id}')` : ''}">
+      <div class="agent-dot ${a.online ? 'online' : 'offline'}"></div>
+      <div class="agent-info">
+        <div class="agent-id">${a.agent_id}</div>
+        <div class="agent-meta">${a.platform || '—'} · ${a.band || '?'} · ${a.ntp_display || '—'}</div>
+      </div>
+      <div class="agent-mbps"
+           id="mbps-${a.agent_id}"
+           style="color:${rollingData[a.agent_id] ? color : '#2d3148'}">
+        ${rollingData[a.agent_id]
+          ? rollingData[a.agent_id].latest.toFixed(1) + ' M'
+          : '—'}
+      </div>
+    </div>`;
+  }).join('');
+  updateRunBtn();
+}
+
+function toggleAgent(id) {
+  if (selected.has(id)) selected.delete(id);
+  else selected.add(id);
+  renderAgentList();
+}
+
+function updateRunBtn() {
+  const btn = document.getElementById('btn-run');
+  const count = document.getElementById('selected-count');
+  const n = selected.size;
+  count.textContent = `${n} device${n !== 1 ? 's' : ''} selected`;
+  btn.disabled = n === 0 || runId !== null;
+}
+
+// ─── Start Run ────────────────────────────────────────────────────────────────
+document.getElementById('btn-run').addEventListener('click', async () => {
+  if (selected.size === 0 || runId !== null) return;
+  durationSec = parseInt(document.getElementById('duration-input').value) || 60;
+
+  const agentIds = [...selected];
+  rollingData = {};
+  firstSampleTsMs = null;
+  initChart(agentIds);
+  setPhase('preparing');
+
+  // Show placeholder rows
+  const tbody = document.getElementById('result-tbody');
+  tbody.innerHTML = agentIds.map(id => `
+    <tr id="row-${id}">
+      <td class="td-agent">${id}</td>
+      <td class="td-dim" colspan="4">waiting…</td>
+    </tr>`).join('');
+  document.getElementById('jfi-row').style.display = 'none';
+
+  const res = await fetch('/api/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agents: agentIds, duration: durationSec }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    setPhase('error', err.error || 'Failed to start run');
+    return;
+  }
+  const { run_id } = await res.json();
+  runId = run_id;
+  document.getElementById('run-id-display').textContent = run_id;
+  document.getElementById('chart-subtitle').textContent = 'live · 1s interval';
+  updateRunBtn();
+  subscribeRunStream(run_id, agentIds);
+});
+
+// ─── Run SSE stream ───────────────────────────────────────────────────────────
+let startTsMs = null;
+
+function subscribeRunStream(rid, agentIds) {
+  if (runEventSource) runEventSource.close();
+  runEventSource = new EventSource(`/api/run/${rid}/stream`);
+
+  runEventSource.onmessage = e => {
+    const { event, data } = JSON.parse(e.data);
+
+    if (event === 'phase') {
+      setPhase(data.phase);
+      // Timer starts on first sample, not here
+    }
+
+    if (event === 'sample') {
+      const { agent_id, throughput_mbps, ts_ms } = data;
+      if (!rollingData[agent_id]) rollingData[agent_id] = { sum: 0, count: 0, latest: 0 };
+      rollingData[agent_id].sum += throughput_mbps;
+      rollingData[agent_id].count++;
+      rollingData[agent_id].latest = throughput_mbps;
+
+      // Left panel: show THIS second's value (not avg)
+      const el = document.getElementById(`mbps-${agent_id}`);
+      if (el) {
+        el.textContent = throughput_mbps.toFixed(1) + ' M';
+        el.style.color = agentColor(agent_id);
+      }
+
+      // Use RPi timestamp as x-axis origin (all agents aligned to same clock)
+      if (!firstSampleTsMs) {
+        firstSampleTsMs = ts_ms;
+        startElapsedTimer(durationSec);  // start timer on first real sample
+      }
+      const secElapsed = Math.round((ts_ms - firstSampleTsMs) / 1000);
+      pushChartSample(agent_id, throughput_mbps, secElapsed);
+
+      // Middle panel: show rolling avg
+      const row = document.getElementById(`row-${agent_id}`);
+      if (row) {
+        const avg = rollingData[agent_id].sum / rollingData[agent_id].count;
+        row.innerHTML = `
+          <td class="td-agent">${agent_id}</td>
+          <td class="td-num">${avg.toFixed(1)}</td>
+          <td class="td-dim">live avg</td>
+          <td class="td-dim">—</td>
+          <td class="td-good">0 ms</td>`;
+      }
+    }
+
+    if (event === 'done') {
+      stopElapsedTimer();
+      setPhase('done');
+      document.getElementById('chart-subtitle').textContent = `${durationSec}s · completed`;
+      renderFinalResults(data);
+      runEventSource.close();
+      runId = null;
+      updateRunBtn();
+    }
+
+    if (event === 'error') {
+      stopElapsedTimer();
+      setPhase('error', data.error);
+      runEventSource.close();
+      runId = null;
+      updateRunBtn();
+    }
+  };
+}
+
+// ─── Final results ────────────────────────────────────────────────────────────
+function renderFinalResults(data) {
+  const agentResults = data.agents || {};
+  const tbody = document.getElementById('result-tbody');
+  tbody.innerHTML = Object.entries(agentResults).map(([id, r]) => {
+    if (r.status === 'complete') {
+      const retWarn = (r.total_retransmits || 0) > 20;
+      return `<tr id="row-${id}">
+        <td class="td-agent">${id}</td>
+        <td class="td-num">${r.throughput_mean_mbps?.toFixed(1) ?? '—'}</td>
+        <td class="td-dim">±${r.throughput_stdev_mbps?.toFixed(1) ?? '—'}</td>
+        <td class="${retWarn ? 'td-warn' : 'td-good'}">${r.total_retransmits ?? '—'}</td>
+        <td class="td-good">${r.sync_offset_ms ?? '—'} ms</td>
+      </tr>`;
+    } else {
+      return `<tr id="row-${id}">
+        <td class="td-agent">${id}</td>
+        <td colspan="4" class="td-warn">✗ ${r.error || r.status}</td>
+      </tr>`;
+    }
+  }).join('');
+
+  // JFI
+  const throughputs = Object.values(agentResults)
+    .filter(r => r.status === 'complete' && r.throughput_mean_mbps)
+    .map(r => r.throughput_mean_mbps);
+  if (throughputs.length > 0) {
+    const jfi = jainsFI(throughputs);
+    const grade = jfi >= 0.9 ? 'Excellent' : jfi >= 0.75 ? 'Good' : jfi >= 0.5 ? 'Fair' : 'Poor';
+    const gradeClass = `grade-${grade.toLowerCase()}`;
+    document.getElementById('jfi-value').textContent = jfi.toFixed(3);
+    document.getElementById('jfi-grade').textContent = grade;
+    document.getElementById('jfi-grade').className = `jfi-grade ${gradeClass}`;
+    document.getElementById('jfi-row').style.display = 'flex';
+  }
+}
+
+function jainsFI(vals) {
+  const n = vals.length;
+  const sum = vals.reduce((a, b) => a + b, 0);
+  const sumSq = vals.reduce((a, b) => a + b * b, 0);
+  return (sum * sum) / (n * sumSq);
+}
+
+// ─── Phase / progress helpers ─────────────────────────────────────────────────
+function setPhase(phase, msg) {
+  const badge = document.getElementById('phase-badge');
+  const labels = {
+    idle: 'IDLE', preparing: '● PREPARING', running: '● RUNNING',
+    collecting: '● COLLECTING', done: '✓ DONE', error: '✗ ERROR',
+  };
+  badge.textContent = labels[phase] || phase.toUpperCase();
+  badge.className = `phase-badge phase-${phase}`;
+  if (phase === 'error' && msg) {
+    document.getElementById('elapsed-display').textContent = msg;
+  }
+  if (phase === 'idle' || phase === 'done') {
+    document.getElementById('progress-bar').style.width = phase === 'done' ? '100%' : '0%';
+  }
+}
+
+function startElapsedTimer(totalSec) {
+  elapsedSec = 0;
+  document.getElementById('progress-bar').style.width = '0%';
+  elapsedTimer = setInterval(() => {
+    elapsedSec++;
+    const pct = Math.min(100, (elapsedSec / totalSec) * 100);
+    document.getElementById('progress-bar').style.width = pct + '%';
+    document.getElementById('elapsed-display').textContent = `${elapsedSec} / ${totalSec} sec elapsed`;
+  }, 1000);
+}
+
+function stopElapsedTimer() {
+  if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
+}
+</script>
 </body>
 </html>

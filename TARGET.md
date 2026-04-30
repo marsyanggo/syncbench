@@ -1,208 +1,89 @@
 # Project Targets — syncbench
 
-_Last updated: 2026-04-27 07:00 PDT_
+_Last updated: 2026-04-29_
 
 ---
 
-## Goal: Phase 1 — 架構驗證(1 AP + 3–5 STA)
+## Goal: Phase 1 — 架構驗證 (1 AP + 3–5 STA)
 
 > 在 5 台 STA 規模下跑通整個驗證框架，達成 Phase 1 成功定義的 5 個條件。
 
-### Phase 1 成功條件(全部達成才算完成)
+### Phase 1 成功條件 (全部達成才算完成)
 
-- [x] 單指令執行：`atf-run scenarios/01_two_sta_equal.yaml` 觸發 3 台 STA 同步啟動 iperf3（2 RPi + 1 NB）✅
-- [x] 即時可視化：Grafana 顯示每台 STA 吞吐量曲線（per-second, 5s refresh）✅
-- [x] 自動報告：測試結束後自動產出 markdown 報告（Jain's FI、各 STA avg/stdev/p95、retransmits、sync offset）✅
-- [x] 同步精度量化：STA 起跑時間誤差實測 0–1 ms（目標 <100 ms）✅
-- [x] 可重現性：`docker compose up -d` + `atf-run` 即可重現，無需手動準備 ✅
-
----
-
-## Goal: Week 1 — 基礎設施 + 單台 RPi 跑通
-
-> Mac 上能看到「rpi-sta-01 online, NTP offset 2.3 ms」
-
-### Sub-tasks
-
-- [x] Step 0-a：git init + repo 骨架建立（LICENSE、README、WORKLOG、design_spec）
-- [x] Step 0-b：push 到 GitHub private repo，設定 remote origin
-- [x] Step 0-c：建立 `pyproject.toml`（paho-mqtt, fastapi, uvicorn, pydantic, influxdb-client）+ uv sync 通過
-
-- [x] Step 1：建立 `docker-compose.yml`（Mosquitto port 1883、InfluxDB port 8086、Grafana port 3000）
-- [x] Step 1：`docker compose up -d` → 確認三服務互通（`curl localhost:8086/health` 回 OK）
-- [x] Step 1：Mosquitto 套用 spec §5.8 設定（allow_anonymous、persistence、log）
-- [x] Step 1：InfluxDB 建立 bucket `atf_metrics`，Grafana datasource 指向 InfluxDB
-
-- [x] Step 2：建立 `shared/mqtt_bus.py`（`MQTTBus` class，從 controller 抽出共用）
-- [x] Step 2：實作 `connect()`（含 LWT）、`publish()`（自動注入 envelope: v/ts/msg_id）、`subscribe()`、`loop_forever()`
-- [x] Step 2：smoke test 3 項通過（roundtrip、LWT、wildcard）
-
-- [x] Step 3：建立 `agent/atf_agent/main.py` 狀態機（BOOT → IDLE）
-- [x] Step 3：`PlatformAdapter` ABC + `LinuxAdapter`（RPi）+ `MacOSAdapter`（本機測試）
-- [x] Step 3：MQTT 連線 + LWT 設定（agent/{id}/status = OFFLINE）
-- [x] Step 3：Heartbeat publisher（1Hz、QoS 0）payload 含 `ntp_offset_ms`
-- [x] Step 3：訂閱 `atf/ctrl/broadcast/+` 和 `atf/ctrl/unicast/agent/{my_id}/+`
-- [x] Step 3：Mac 本機跑 agent 驗證通過（BOOT→IDLE，RPi 待實機確認）
-- [x] Step 3：`deploy/rpi-image/Dockerfile`（ARM64 多架構，含 iw/chrony/iperf3）
-
-- [x] Step 4：建立 `controller/atf_ctrl/inspector/server.py`（FastAPI + lifespan）
-- [x] Step 4：`InspectorState`（thread-safe，heartbeat + status 更新）
-- [x] Step 4：MQTT subscriber 訂閱 `agent/+/heartbeat`、`agent/+/status`
-- [x] Step 4：`GET /` → 暗色主題 HTML 儀表板
-- [x] Step 4：`GET /events` → SSE stream（EventSource 即時推送）
-
-- [x] Step 5（里程碑）：瀏覽器 localhost:8080 顯示 `rpi-sta-01 ●online +0.0ms IDLE` ✅
+- [x] 單指令執行：`atf-run` 觸發多台 STA 同步啟動 iperf3 ✅
+- [x] 即時可視化：Grafana 顯示每台 STA 吞吐量曲線 ✅
+- [x] 自動報告：測試結束後自動產出 markdown 報告 + Jain's FI ✅
+- [x] 同步精度量化：STA 起跑時間誤差實測 0 ms ✅
+- [x] 可重現性：`docker compose up -d` + `atf-run` 即可重現 ✅
 
 ---
 
-## Goal: Week 2 — 單 STA 測試端到端
-
-> `atf-run 00_smoke_test.yaml` 一條指令能跑完整流程（ATF 先不 enable，專注跑通 pipeline）
-
-### 硬體線（需要 RPi）
-
-- [x] A1：燒 RPi OS Lite 64-bit（bookworm）— 已完成
-- [x] A2：RPi 連上 AX4200 Wi-Fi（atf_test_5g），SSH 可進（rpi-sta-01 IP: 192.168.1.221）
-- [x] A3：RPi 安裝 iperf3 + chrony + iw + uv + Python 3.11
-- [x] A4：clone repo + `uv sync`，部署 agent 程式碼
-- [x] A5：`atf-agent` 跑起來，Inspector 顯示 rpi-sta-01 IDLE
-
-### 軟體線（Mac，可立即開始）
-
-- [x] B1：`agent/atf_agent/traffic/iperf3.py` — 包裝 iperf3 CLI，解析 JSON output，回傳 ThroughputSample + 統計
-- [x] B1：5 項測試通過（TCP roundtrip、timestamp、sequential、unreachable、UDP）
-
-- [x] B2：`controller/atf_ctrl/scenarios/models.py` — Pydantic models（Scenario, StationConfig, TrafficConfig, PreflightConfig）
-- [x] B3：`controller/atf_ctrl/scenarios/loader.py` — `load(yaml_path)` + extends deep merge
-- [x] B3：建立 `scenarios/_base/normal.yaml` + `scenarios/00_smoke_test.yaml` + `01_two_sta_equal.yaml`
-- [x] B3：5 項測試通過（load、extends merge、multi-STA、missing file、invalid YAML）
-
-- [x] B4：`controller/atf_ctrl/orchestrator.py` — prepare → 等 ack → start_at → 等 duration → stop → collect results
-- [x] B4：agent 完整跑 iperf3 並回傳 result，orchestrator 收到 ok=True
-
-- [x] B5：`controller/atf_ctrl/cli.py` — `atf-run` + `atf-status` CLI entry point
-- [x] B5：`scripts/local-test.sh` + `scenarios/00_smoke_test_local.yaml`（5/5 checks pass）
-
-### 合體驗收
-
-- [x] OpenWrt AP 確認型號：ASUS AX4200（MT7986A Filogic 830，mt76 driver）
-- [x] AX4200 5GHz Wi-Fi 設定（SSID: atf_test_5g, WPA2 AES, ch36 HE80）
-- [x] Mac mini mDNS hostname 設定（`atf-broker.local`，`sudo scutil --set LocalHostName atf-broker`）
-- [x] `scenarios/*.yaml` broker IP 全改為 `atf-broker.local`（支援 DHCP 環境彈性）
-- [x] `scripts/setup-rpi.sh` 更新（Step 0 自動設 hostname、`User=$(whoami)` 動態抓）
-- [x] `docs/development-setup.md` 新增 Hardware Network Setup 段落
-- [x] hostapd 確認 ATF 介面存在（`iw phy phy1 info | grep airtime` → AIRTIME_FAIRNESS + AQL）
-- [x] Mac mini 跑 `iperf3-darwin -s`，RPi 作為 iperf3 client 連 AP（252 Mbps）
-- [x] `atf-run scenarios/00_smoke_test.yaml` 一條指令跑完整流程（30 秒）PASSED
-- [x] Inspector 顯示 rpi-sta-01 state: RUNNING → REPORTING → IDLE
-- [x] `iperf3.py` bug fix：`timemillisecs` KeyError → `timesecs * 1000` fallback（iperf3 3.18 相容）
+## Goal: Week 1 — 基礎設施 + 單台 RPi 跑通 ✅
 
 ---
 
-## Goal: Week 3 — 多台 STA + 同步驗證
-
-> 2 台先跑通，架構驗證後彈性擴充到 3 台。同步誤差 <100ms 量化證明。
-
-### Step 1 — 第 2 台 RPi 上線
-
-- [x] rpi-sta-02：`setup-rpi.sh --agent-id rpi-sta-02`（IP: 192.168.1.233）
-- [x] Inspector 同時顯示 rpi-sta-01 + rpi-sta-02 ●online
-
-### Step 2 — 2 台同步測試
-
-- [x] Orchestrator 自動管理 iperf3 server（port pool 5201/5202，subprocess spawn/kill，N 台自動擴充）
-- [x] `01_two_sta_equal.yaml` 移除 hardcoded port，由 orchestrator 動態分配
-- [x] 跑 `atf-run scenarios/01_two_sta_equal.yaml`（2 台同時 iperf3）PASSED
-- [x] sync_offset 實測 0–1ms（< 100ms 門檻）✅
-
-### Step 3 — sync 精度提升
-
-- [x] `shared/sync.py` NTP-aware `sleep_until`（coarse sleep + 20ms busy-wait hybrid）
-- [x] sync_offset 實測穩定 0ms，每次 run 記錄在 result payload
-
-### Step 4 — Grafana dashboard
-
-- [x] `controller/atf_ctrl/metrics/influx_writer.py`：per-interval samples + run_summary 寫 InfluxDB
-- [x] Agent result payload 加入 `samples` 陣列（每秒一點）
-- [x] Grafana dashboard（throughput 曲線 / sync offset bar / mean stat 三 panels）
-- [x] iperf3.py text-mode streaming（`--forceflush` + `bufsize=1`）+ `on_sample` callback
-- [x] Live MQTT topic `atf/agent/{id}/live/{run_id}`，orchestrator 即時寫 InfluxDB
-- [x] Stat panel 即時 rolling average（`throughput` measurement, group by agent+run, last per agent）
-- [x] Grafana 顯示優化：清理空 agent_id 髒資料、`displayName` 用 `${__field.labels.agent_id}`、小數點 1 位
-- [x] Grafana datasource provisioning + docker-compose datasources volume mount
-- [x] 驗證：122 points 寫入成功，`http://localhost:3000` 看到圖
-
-### Step 5 — AP collector
-
-- [x] Agent 把 `wifi_mac` 加進 retained status payload，AP collector 自動建 MAC→agent_id 對應
-- [x] `controller/atf_ctrl/collector/ap_collector.py`：SSH 讀 mt76 debugfs（`stations/{mac}/airtime`），算 RX/TX delta %，寫 InfluxDB `ap_airtime` measurement
-- [x] `atf-ap-collector` CLI entry point（`--ap`、`--phy`、`--iface`、`--interval`、`--broker`）
-- [x] Grafana 新增 panel：AP Airtime per STA (TX %)，跟 throughput 並排對照
-
-### Step 6 — 擴充到 3 台（選做，有第 3 台 RPi 再做）
-
-- [ ] 燒第 3 台 RPi，`--agent-id rpi-sta-03`
-- [ ] 建立 `02_three_sta_equal.yaml`，跑通 3 台同步
-
-### Step 7 — 多平台支援預備工作
-
-- [x] `setup-rpi.sh` 改名 → `setup-linux.sh`（同時支援 RPi 跟筆電）
-- [x] setup script 加入 `--wifi-ssid` / `--wifi-pass`（NetworkManager 自動連線）+ Wi-Fi power_save off
-- [x] `docs/multi-platform.md` + `multi-platform-zh.md`：支援矩陣、PlatformAdapter ABC 抽象、新增平台 recipe、各平台 caveats、混合 scenario 範例、agent_id 命名慣例
-- [x] User guides 新增 6.7「Adding a Linux laptop or other device」段落
-
-### Step 8 — Linux NB 實機驗證
-
-- [x] linux-nb-01（ThinkPad X1 Carbon Gen 13 / Ubuntu 24.04 / Wi-Fi 6）部署成功
-- [x] setup-linux.sh 修正：power_save 步驟移到 apt 安裝 iw 之後
-- [x] 建立 `scenarios/02_three_sta_mixed.yaml`（2 RPi + 1 NB）
-- [x] 3-STA 異質測試 PASSED：rpi 各 ~80 Mbps，NB ~413 Mbps，sync_offset 全部 0ms
-- [x] User guide 加 Ubuntu NOPASSWD sudo troubleshooting 段
-
-### Step 9 — ATF on/off 驗證準備
-
-- [x] Bug fix：agent prepare 跳過機制（不在 scenario 的 agent 保持 IDLE）
-- [x] Grafana 所有 panel 改用最新 run_id 過濾（跨 run 不殘留舊 STA）
-- [x] AX4200 啟用 ATF dynamic mode（`airtime_mode=2`）
-- [x] Per-STA airtime weight 設定：rpi×2=256，NB=51（1/5）
-- [x] 確認 per-STA weight 不生效（HE80 OFDMA 下 airtime_weight 被 bypass，記載於 methodology.md + report）
+## Goal: Week 2 — 單 STA 測試端到端 ✅
 
 ---
 
-## Goal: Week 4 — 報告產出 + 文件 + 規模到 5 台
+## Goal: Week 3 — 多台 STA + 同步驗證 ✅
 
-> Phase 1 成功定義 5 條全部達成，專案可乾淨 push 到 GitHub
+---
 
-### Sub-tasks
+## Goal: Week 4 — 報告產出 + 文件 + 規模到 6 台
 
-- [x] `reporter.py` + `fairness.py`：`atf-run` 跑完自動產 markdown report + Jain's FI
-- [x] Jain's FI 計算：`(Σxi)² / (n × Σxi²)`，含 grade 等級（Excellent/Good/Fair/Poor）
-- [x] `atf-report` CLI entry point（`--run-id`、`--out` 參數）
-- [x] Phase 1 integration report（`reports/phase1-integration-report.md`）含 ATF investigation 結果
-- [x] `docs/architecture.md`：元件圖、MQTT topics、InfluxDB schema
-- [x] `docs/methodology.md`：同步方法、JFI 公式、AX4200 ATF 限制、異質 Wi-Fi 世代限制
-- [x] `CONTRIBUTING.md`（DCO 規則）、`SECURITY.md`、`NOTICE`
-- [x] 確認 repo 無廠商私有資訊（只用 public kernel 介面：iw/nl80211/debugfs/hostapd_cli）
-- [ ] 加到 5 台 STA（目前 3 台：2 RPi + 1 NB，硬體限制）
-- [ ] `03_asymmetric_rate.yaml` ATF on/off 對比（AX4200 HE80 下 ATF 無效，需換 AP 或改 VHT80）
+- [x] `reporter.py` + `fairness.py`：Jain's FI 自動計算
+- [x] `docs/architecture.md`、`methodology.md`
+- [x] `CONTRIBUTING.md`、`SECURITY.md`、`NOTICE`
+- [x] rpi-sta-03/04/05 setup（RPi 5 × 2 + RPi 4 × 1）
+- [x] `scenarios/03_five_sta_rpi.yaml`：5 台 RPi 同步跑通（JFI = 0.886）
+- [x] `scenarios/04_six_sta_mixed.yaml`：5 RPi + 1 NB 跑通（JFI = 0.521）
+- [x] ATF on/off 對比跑通（AX4200 HE80 下 ATF 無效，記錄於 methodology.md）
+- [x] cli.py 自動載入 `.env`（不需手動 export INFLUXDB_TOKEN）
+- [x] orchestrator.py InfluxDB write error catch（防止 MQTT 連線 crash）
+- [x] README 更新：6-STA demo 影片 + reference results 表格
 - [ ] repo 轉 public（待律師確認）
+
+---
+
+## Goal: Phase 2 — Integrated Web UI (Inspector + Native Chart)
+
+> 把 CLI workflow 變成單一網頁：在線 device 選取 → 一鍵觸發 run → 即時圖表呈現結果，移除 Grafana 依賴。
+
+### Step 1 — Orchestrator 改成 callable
+
+- [ ] 把 `Orchestrator` 從 CLI-only 拆成 importable class（`async run(scenario_dict) → RunResult`）
+- [ ] `atf-run` CLI 改成薄包裝層，呼叫同一個 class（確保 CLI 繼續可用）
+
+### Step 2 — Inspector Run API
+
+- [ ] `POST /api/run`：接受 `{agents: [...], duration: int}`，動態產生 scenario，呼叫 Orchestrator
+- [ ] `GET /api/run/{run_id}/stream` SSE：即時推送 run 進度（prepare / running / done + 結果）
+- [ ] `GET /api/metrics/live/{run_id}`：從 MQTT live topic 或 InfluxDB 取每秒 throughput，回傳 JSON time-series
+
+### Step 3 — Inspector UI 重設計
+
+- [ ] 頁面 layout 重構：左欄 agent 選取、中間 run 控制 + 結果、右欄即時圖表
+- [ ] Agent 列表加 checkbox（online 才可選）+ duration input + Start Run 按鈕
+- [ ] Run 進度顯示（phase badge：PREPARING → RUNNING → DONE）
+- [ ] 跑完後結果表格：throughput avg / stdev / retransmits / sync_offset / JFI
+
+### Step 4 — Native Chart（Chart.js）
+
+- [ ] 引入 Chart.js（CDN，不需 build step）
+- [ ] SSE-driven 即時曲線：測試進行中每秒 append 新資料點，各 agent 一條線
+- [ ] 跑完後曲線定格，顯示完整 60 秒數據
+- [ ] Hover agent 列表時對應曲線高亮
+
+### Step 5 — 移除 Grafana 依賴（選做）
+
+- [ ] `docker-compose.yml` 把 Grafana 標為 optional profile
+- [ ] `docs/` 更新：說明 Inspector 已內建圖表，Grafana 為進階選項
 
 ---
 
 ## Goal: 法律合規準備
 
-> 動工前完成，確保 IP 清晰
-
-### Sub-tasks
-
-- [ ] 諮詢加州執業智財/僱傭律師（California Labor Code §2870 風險評估）
-- [x] 確認所有開發工作在私人時間、私人設備上完成（Mac mini 私人設備，週六晚上）
-- [x] 建立開發日誌（時間戳記 + 使用設備記錄）
-- [x] 安裝開發工具：Homebrew + gnupg + pinentry-mac
-- [x] 設定 git identity（personal email + GPG signing key 55B37F93D54FF60A）
-- [x] 產生 SSH key（id_ed25519_personal）+ 上傳至 GitHub
-- [x] 產生 GPG key + 上傳至 GitHub（Verified commits）
-- [x] 建立 GitHub personal private repo（marsyanggo/atf-validator）
-- [x] Initial commit：GPG signed independence 宣告書（commit f50c101）
-- [x] 建立 Apache 2.0 LICENSE（Copyright 2026 Mars Yang）
-- [x] 建立 README.md（定位錨點：platform-agnostic ATF validation framework）
+- [x] 私人設備/時間確認、git identity、GPG、GitHub repo
+- [x] 開發日誌 WORKLOG.md
+- [ ] 諮詢加州執業智財/僱傭律師（California Labor Code §2870）

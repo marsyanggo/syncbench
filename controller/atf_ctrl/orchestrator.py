@@ -8,6 +8,9 @@ Flow:
     wait (duration + buffer)
     stop (broadcast)
     collect results
+
+Can be called programmatically via run(scenario, on_event=cb) where cb receives
+(event_type: str, data: dict) at each phase transition.
 """
 
 import logging
@@ -15,6 +18,7 @@ import shutil
 import subprocess
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from ulid import ULID
@@ -78,13 +82,25 @@ class Orchestrator:
     # Public API
     # ------------------------------------------------------------------
 
-    def run(self, scenario: Scenario) -> RunResult:
+    def run(
+        self,
+        scenario: Scenario,
+        on_event: Callable[[str, dict], None] | None = None,
+    ) -> RunResult:
+        def emit(event: str, data: dict) -> None:
+            if on_event:
+                try:
+                    on_event(event, data)
+                except Exception:
+                    pass
+
         run_id = f"run-{ULID()}"
         result = RunResult(run_id=run_id, scenario_name=scenario.name)
         expected = [s.node for s in scenario.stations]
 
         logger.info("Starting run %s — scenario: %s", run_id, scenario.name)
         logger.info("Expected agents: %s", expected)
+        emit("started", {"run_id": run_id, "agents": expected, "scenario": scenario.name})
 
         # Assign unique ports and build station_traffic map
         station_traffic = {
@@ -107,7 +123,7 @@ class Orchestrator:
         self._start_iperf3_servers(station_traffic)
 
         try:
-            return self._run_phases(run_id, cmd_id, scenario, expected, station_traffic, result)
+            return self._run_phases(run_id, cmd_id, scenario, expected, station_traffic, result, emit)
         finally:
             self._stop_iperf3_servers()
 
@@ -119,9 +135,11 @@ class Orchestrator:
         expected: list[str],
         station_traffic: dict,
         result: RunResult,
+        emit: Callable[[str, dict], None],
     ) -> RunResult:
         # Phase 1: Prepare
         logger.info("Phase 1: Broadcasting prepare")
+        emit("phase", {"phase": "preparing", "run_id": run_id})
         self._bus.publish(
             "atf/ctrl/broadcast/prepare",
             {
@@ -138,14 +156,14 @@ class Orchestrator:
             missing = [a for a in expected if not self._acks.get(a, threading.Event()).is_set()]
             result.error = f"Prepare timeout — no ack from: {missing}"
             logger.error(result.error)
-            # Reset any agents that acked (stuck in ARMED) back to IDLE
             self._bus.publish("atf/ctrl/broadcast/teardown", {"run_id": run_id})
+            emit("error", {"run_id": run_id, "error": result.error})
             return result
-
 
         # Phase 2: Start
         start_ms = int(time.time() * 1000) + START_DELAY_MS
         logger.info("Phase 2: Broadcasting start_at (T+%dms)", START_DELAY_MS)
+        emit("phase", {"phase": "running", "run_id": run_id, "duration_sec": scenario.duration_sec})
         self._bus.publish(
             "atf/ctrl/broadcast/start_at",
             {
@@ -163,6 +181,7 @@ class Orchestrator:
 
         # Phase 4: Stop
         logger.info("Phase 4: Broadcasting stop")
+        emit("phase", {"phase": "collecting", "run_id": run_id})
         self._bus.publish(
             "atf/ctrl/broadcast/stop",
             {"run_id": run_id, "reason": "normal_complete"},
@@ -184,6 +203,24 @@ class Orchestrator:
             writer.close()
         except Exception as exc:
             logger.warning("InfluxDB write failed (non-fatal): %s", exc)
+
+        # Emit final result
+        emit("done", {
+            "run_id": run_id,
+            "ok": result.ok,
+            "error": result.error,
+            "agents": {
+                aid: {
+                    "status": r.status,
+                    "throughput_mean_mbps": r.throughput_mean_mbps,
+                    "throughput_stdev_mbps": r.throughput_stdev_mbps,
+                    "total_retransmits": r.total_retransmits,
+                    "sync_offset_ms": r.sync_offset_ms,
+                    "error": r.error,
+                }
+                for aid, r in result.agent_results.items()
+            },
+        })
 
         return result
 

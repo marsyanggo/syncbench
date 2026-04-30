@@ -55,3 +55,18 @@ class PlatformAdapter(ABC):
     def is_ntp_synced(self) -> bool:
         """Return True if the system clock is NTP-synchronized."""
         ...
+
+    def get_band(self) -> str:
+        """Return connected Wi-Fi band: '2.4G', '5G', '6G', or 'unknown'.
+
+        Derived from get_link_info().freq_mhz — no per-platform override needed
+        unless the adapter cannot populate freq_mhz.
+        """
+        freq = self.get_link_info().freq_mhz
+        if freq is None:
+            return "unknown"
+        if freq < 3000:
+            return "2.4G"
+        if freq < 6000:
+            return "5G"
+        return "6G"
