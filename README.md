@@ -72,7 +72,11 @@ https://github.com/marsyanggo/syncbench/assets/50380018/5e907b10-2de8-434c-bcf9-
 
 https://github.com/marsyanggo/syncbench/assets/50380018/c9923234-d7bc-45a8-9ecb-760eac045d38
 
-> Both runs: sync offset 0–1 ms, auto-generated report, real-time Grafana throughput curves.
+### 6-STA: 5 × Raspberry Pi + 1 × Linux NB (Jain's FI = 0.521)
+
+https://github.com/user-attachments/assets/2159f23a-fef3-485e-b90e-8fb26ed8f379
+
+> All runs: sync offset 0 ms, auto-generated report, real-time Grafana throughput curves.
 
 ### Phase 1 reference results (Wi-Fi ATF case study)
 
@@ -80,6 +84,7 @@ https://github.com/marsyanggo/syncbench/assets/50380018/c9923234-d7bc-45a8-9ecb-
 |---|---|---|
 | 2-STA homogeneous (RPi × 2) | **0.999** | 0 ms |
 | 3-STA heterogeneous (RPi × 2 + NB Wi-Fi 6) | **0.642** | 0–1 ms |
+| 6-STA heterogeneous (RPi × 5 + NB Wi-Fi 6) | **0.521** | 0 ms |
 
 > Side-finding from the heterogeneous run: the AX4200 (MT7986A / mt76) does not enforce ATF in HE80 OFDMA mode — `airtime_weight` is bypassed by the OFDMA RU scheduler. See [methodology.md](docs/methodology.md) for the full write-up. This is exactly the kind of "the tool surfaced something the spec didn't predict" outcome the framework is designed to enable.
 
