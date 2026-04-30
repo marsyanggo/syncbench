@@ -69,11 +69,11 @@ Use cases this is **not** trying to be:
 
 ### v2 · 5-STA: 5 × Raspberry Pi — Jain's FI = 0.886 ✅ Good
 
-https://github.com/user-attachments/assets/e15f8b05-64dd-49f5-9f88-1296e3cfac76
+https://github.com/user-attachments/assets/be0581c6-a20e-480c-8e1c-85e31639a57d
 
 ### v2 · 6-STA: 5 × Raspberry Pi + 1 × Linux NB — Jain's FI = 0.521 ⚠️ Poor
 
-https://github.com/user-attachments/assets/be0581c6-a20e-480c-8e1c-85e31639a57d
+https://github.com/user-attachments/assets/e15f8b05-64dd-49f5-9f88-1296e3cfac76
 
 > The NB (Wi-Fi 6) dominates airtime — one device pulls JFI from **Good → Poor**. This is exactly the heterogeneous fairness gap syncbench is built to surface.
 
