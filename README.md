@@ -65,19 +65,35 @@ Use cases this is **not** trying to be:
 
 ## Demo
 
-### 2-STA: 2 × Raspberry Pi (Jain's FI = 0.999)
+> **v2 — Integrated Web UI** (Inspector with live Chart.js): select devices, start run, and watch throughput curves — all in one page.
+
+### v2 · 5-STA: 5 × Raspberry Pi — Jain's FI = 0.886 ✅ Good
+
+https://github.com/user-attachments/assets/e15f8b05-64dd-49f5-9f88-1296e3cfac76
+
+### v2 · 6-STA: 5 × Raspberry Pi + 1 × Linux NB — Jain's FI = 0.521 ⚠️ Poor
+
+https://github.com/user-attachments/assets/be0581c6-a20e-480c-8e1c-85e31639a57d
+
+> The NB (Wi-Fi 6) dominates airtime — one device pulls JFI from **Good → Poor**. This is exactly the heterogeneous fairness gap syncbench is built to surface.
+
+---
+
+> **v1 — CLI + Grafana** (original Phase 1 demos)
+
+### v1 · 2-STA: 2 × Raspberry Pi (Jain's FI = 0.999)
 
 https://github.com/marsyanggo/syncbench/assets/50380018/5e907b10-2de8-434c-bcf9-475a82c2dacc
 
-### 3-STA: 2 × Raspberry Pi + 1 × Linux NB (Jain's FI = 0.642)
+### v1 · 3-STA: 2 × Raspberry Pi + 1 × Linux NB (Jain's FI = 0.642)
 
 https://github.com/marsyanggo/syncbench/assets/50380018/c9923234-d7bc-45a8-9ecb-760eac045d38
 
-### 6-STA: 5 × Raspberry Pi + 1 × Linux NB (Jain's FI = 0.521)
+### v1 · 6-STA: 5 × Raspberry Pi + 1 × Linux NB (Jain's FI = 0.521)
 
 https://github.com/user-attachments/assets/2159f23a-fef3-485e-b90e-8fb26ed8f379
 
-> All runs: sync offset 0 ms, auto-generated report, real-time throughput curves in the Inspector UI.
+> All runs: sync offset 0 ms, auto-generated report, real-time throughput curves.
 
 ### Phase 1 reference results (Wi-Fi ATF case study)
 
