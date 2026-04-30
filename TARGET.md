@@ -1,6 +1,6 @@
 # Project Targets — syncbench
 
-_Last updated: 2026-04-29_
+_Last updated: 2026-04-30_
 
 ---
 
@@ -52,33 +52,41 @@ _Last updated: 2026-04-29_
 
 ### Step 1 — Orchestrator 改成 callable
 
-- [ ] 把 `Orchestrator` 從 CLI-only 拆成 importable class（`async run(scenario_dict) → RunResult`）
-- [ ] `atf-run` CLI 改成薄包裝層，呼叫同一個 class（確保 CLI 繼續可用）
+- [x] `Orchestrator.run()` 加 `on_event` callback（phase / sample / done / error）
+- [x] `atf-run` CLI 繼續可用（on_event=None 預設）
 
 ### Step 2 — Inspector Run API
 
-- [ ] `POST /api/run`：接受 `{agents: [...], duration: int}`，動態產生 scenario，呼叫 Orchestrator
-- [ ] `GET /api/run/{run_id}/stream` SSE：即時推送 run 進度（prepare / running / done + 結果）
-- [ ] `GET /api/metrics/live/{run_id}`：從 MQTT live topic 或 InfluxDB 取每秒 throughput，回傳 JSON time-series
+- [x] `POST /api/run`：接受 `{agents, duration}`，動態產生 scenario，背景 thread 跑 Orchestrator
+- [x] `GET /api/run/{run_id}/stream` SSE：推送 phase / sample / done / error 事件
+- [x] `GET /api/metrics/{run_id}`：InfluxDB 歷史 time-series query
 
 ### Step 3 — Inspector UI 重設計
 
-- [ ] 頁面 layout 重構：左欄 agent 選取、中間 run 控制 + 結果、右欄即時圖表
-- [ ] Agent 列表加 checkbox（online 才可選）+ duration input + Start Run 按鈕
-- [ ] Run 進度顯示（phase badge：PREPARING → RUNNING → DONE）
-- [ ] 跑完後結果表格：throughput avg / stdev / retransmits / sync_offset / JFI
+- [x] 3 欄 layout：左欄 device 選取、中欄 run 控制 + 結果、右欄即時圖表
+- [x] Agent checkbox（online 才可選，running 中 disabled）+ duration input + Start Run
+- [x] Run phase badge（IDLE / PREPARING / RUNNING / COLLECTING / DONE / ERROR）+ 進度條
+- [x] 結果表格：throughput avg / stdev / retransmits / sync_offset + JFI
 
 ### Step 4 — Native Chart（Chart.js）
 
-- [ ] 引入 Chart.js（CDN，不需 build step）
-- [ ] SSE-driven 即時曲線：測試進行中每秒 append 新資料點，各 agent 一條線
-- [ ] 跑完後曲線定格，顯示完整 60 秒數據
-- [ ] Hover agent 列表時對應曲線高亮
+- [x] Chart.js CDN，不需 build step
+- [x] SSE sample 事件驅動即時曲線，RPi ts_ms 為 x 軸基準（跨 agent 對齊）
+- [x] spanGaps: true（無斷線）
+- [x] Golden ratio hue 動態配色（100+ agent 不重複）
+- [x] 左欄即時顯示每秒 throughput，中欄顯示 rolling avg
 
 ### Step 5 — 移除 Grafana 依賴（選做）
 
-- [ ] `docker-compose.yml` 把 Grafana 標為 optional profile
-- [ ] `docs/` 更新：說明 Inspector 已內建圖表，Grafana 為進階選項
+- [x] `docker-compose.yml` 把 Grafana 標為 optional profile（`--profile monitoring`）
+- [x] `docs/` 更新：說明 Inspector 已內建圖表，Grafana 為進階選項
+
+### 額外完成
+
+- [x] `PlatformAdapter.get_band()`：從 `freq_mhz` 推導 2.4G/5G/6G，所有平台自動繼承
+- [x] `LinuxAdapter._IW`：`shutil.which` 解決 systemd PATH 不含 `/usr/sbin` 的問題
+- [x] `InspectorState.update_status`：retained MQTT 訊息不更新 `last_seen`，防止誤判 online
+- [x] Inspector MQTT 重連導致閃爍：排查確認是兩個 inspector 搶 client ID
 
 ---
 

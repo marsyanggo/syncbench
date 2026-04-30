@@ -28,6 +28,7 @@ services:
     restart: unless-stopped
 
   grafana:
+    profiles: [monitoring]
     image: grafana/grafana:11.4.0
     container_name: atf-grafana
     ports:

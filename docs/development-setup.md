@@ -130,7 +130,7 @@ docker compose version
 docker compose up -d
 ```
 
-Verify all three services:
+Verify core services (Mosquitto + InfluxDB):
 ```bash
 # InfluxDB
 curl localhost:8086/health
@@ -140,13 +140,16 @@ curl localhost:8086/health
 mosquitto_sub -h localhost -p 1883 -t "atf/test" -C 1 &
 mosquitto_pub -h localhost -p 1883 -t "atf/test" -m "hello-atf"
 # Expected output: hello-atf
-
-# Grafana
-open http://localhost:3000
-# Login: admin / atf-grafana-2026
 ```
 
-> Grafana datasource (InfluxDB) and syncbench dashboard are auto-provisioned on first start via `deploy/grafana/`. No manual setup needed.
+> **Grafana is optional.** The Inspector (`http://localhost:8080`) has a built-in live chart and run results. Grafana is useful for historical run comparison and advanced queries.
+>
+> To start Grafana:
+> ```bash
+> docker compose --profile monitoring up -d grafana
+> open http://localhost:3000   # admin / atf-grafana-2026
+> ```
+> Datasource and dashboard are auto-provisioned via `deploy/grafana/`.
 
 ---
 
@@ -250,17 +253,24 @@ uv run atf-run scenarios/01_two_sta_equal.yaml    # 2 STA, 60s
 
 > No need to manually run `iperf3 -s` — the orchestrator handles it.
 
-### Watch real-time in Grafana
-
-1. Open `http://localhost:3000` → Dashboards → **syncbench**
-2. Set time range to **Last 5 minutes**, auto-refresh **5s**
-3. Run `atf-run` — lines appear in real-time as each STA reports throughput
-
-### Run Inspector for live agent status
+### Watch real-time in the Inspector
 
 ```bash
 uv run atf-inspector   # then open http://localhost:8080
 ```
+
+Select devices → set duration → **Start Run**. Live throughput curves, phase progress, and Jain's FI appear in the browser as the test runs.
+
+### Watch real-time in Grafana (optional)
+
+```bash
+docker compose --profile monitoring up -d grafana
+open http://localhost:3000   # admin / atf-grafana-2026
+```
+
+1. Dashboards → **syncbench**
+2. Set time range to **Last 5 minutes**, auto-refresh **5s**
+3. Run `atf-run` — lines appear in real-time
 
 ---
 
