@@ -1,0 +1,34 @@
+extends: _base/normal.yaml
+
+name: "Six STA Mixed (5 RPi + 1 Linux NB)"
+description: "Max scale test: 5 Raspberry Pis + 1 Linux laptop (Wi-Fi 6)"
+duration_sec: 60
+
+preflight:
+  expected_agents: ["rpi-sta-01", "rpi-sta-02", "rpi-sta-03", "rpi-sta-04", "rpi-sta-05", "linux-nb-01"]
+
+stations:
+  - node: rpi-sta-01
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+  - node: rpi-sta-02
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+  - node: rpi-sta-03
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+  - node: rpi-sta-04
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+  - node: rpi-sta-05
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+  - node: linux-nb-01
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"

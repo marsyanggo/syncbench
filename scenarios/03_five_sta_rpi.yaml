@@ -1,0 +1,30 @@
+extends: _base/normal.yaml
+
+name: "Five STA RPi Only"
+description: "Homogeneous RPi test: 5 Raspberry Pis (rpi-sta-01 through rpi-sta-05)"
+duration_sec: 60
+
+preflight:
+  expected_agents: ["rpi-sta-01", "rpi-sta-02", "rpi-sta-03", "rpi-sta-04", "rpi-sta-05"]
+
+stations:
+  - node: rpi-sta-01
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+  - node: rpi-sta-02
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+  - node: rpi-sta-03
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+  - node: rpi-sta-04
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+  - node: rpi-sta-05
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"

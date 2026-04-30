@@ -215,7 +215,10 @@ class Orchestrator:
                     .field("retransmits", int(payload.get("retransmits", 0)))
                     .time(payload["ts_ms"] * 1_000_000, WritePrecision.NS)
                 )
-                write_api.write(bucket=INFLUX_BUCKET, record=p)
+                try:
+                    write_api.write(bucket=INFLUX_BUCKET, record=p)
+                except Exception as e:
+                    logger.warning("InfluxDB live write failed (non-fatal): %s", e)
 
             self._bus.subscribe(f"atf/agent/+/live/{run_id}", _on_live, qos=0)
             logger.info("Live InfluxDB writer active for run %s", run_id)
