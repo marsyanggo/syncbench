@@ -23,13 +23,14 @@ A complete guide to install, deploy, and operate the ATF (Airtime Fairness) Vali
 
 ## 1. What is this?
 
-syncbench is a platform-agnostic framework for validating IEEE 802.11 Airtime Fairness on consumer Wi-Fi hardware. It coordinates multiple Raspberry Pi stations to run synchronized iperf3 traffic against a single AP, measures per-station throughput and start-time jitter, and visualizes results in real-time on Grafana.
+syncbench is a platform-agnostic framework for validating IEEE 802.11 Airtime Fairness on consumer Wi-Fi hardware. It coordinates multiple client devices (Raspberry Pi, Linux laptops, and more) to run synchronized iperf3 traffic against a single AP, measures per-client throughput and start-time jitter, and visualizes results in real-time through the built-in web UI.
 
-**Phase 1 goals:**
-- One-command execution: `atf-run scenarios/01_two_sta_equal.yaml`
-- Real-time per-STA throughput curves in Grafana
-- Sync precision < 100ms (typical: 0–1ms)
-- Reproducible after system reboot within 5 minutes
+**Key capabilities:**
+- **Integrated web UI** — select online devices, start a run, and watch live per-second throughput curves, all from `http://localhost:8080`
+- **One-command CLI** — `atf-run scenarios/04_six_sta_mixed.yaml` for scripted/CI runs
+- **Sync precision < 100ms** (typical: 0 ms across mixed ARM64 / x86_64 hardware)
+- **Jain's Fairness Index** computed and displayed automatically after each run
+- **Reproducible** — `docker compose up -d` + Inspector is all you need
 
 The framework itself is transport-agnostic — only the ATF on/off toggle in test scenarios is Wi-Fi specific. The same orchestration pipeline works for wired QoS testing, multi-protocol traffic, or any synchronized multi-endpoint scenario.
 
@@ -72,26 +73,28 @@ The framework itself is transport-agnostic — only the ATF on/off toggle in tes
 |---|---|---|
 | Test scenarios | YAML files | Mac mini |
 | Orchestrator | `atf-run` CLI | Mac mini |
-| Inspector dashboard | FastAPI + SSE | Mac mini (`http://localhost:8080`) |
-| Metrics dashboard | Grafana 11 | Mac mini (`http://localhost:3000`) |
+| **Web UI + live chart** | **Inspector (FastAPI + Chart.js)** | **Mac mini (`http://localhost:8080`)** |
 | Time series DB | InfluxDB 2.7 | Mac mini |
 | Message bus | Mosquitto MQTT 2.0 | Mac mini |
-| Agent | `atf-agent` systemd service | Each RPi |
-| Traffic | `iperf3` server (Mac) / client (RPi) | Both sides |
+| Agent | `atf-agent` systemd service | Each device |
+| Traffic | `iperf3` server (Mac) / client (device) | Both sides |
+| Historical dashboard *(optional)* | Grafana 11 | Mac mini (`http://localhost:3000`) |
 
 ### Data flow
 
 ```
-RPi iperf3 client ──per-second sample──▶ MQTT live topic
-                                              │
-Mac mini orchestrator ──subscribe──────────────┘
-        │
-        ├─▶ InfluxDB (real-time write)
-        │       │
-        │       ▼
-        │   Grafana (5s refresh, lines drawn live)
-        │
-        └─▶ run_summary on completion
+Device iperf3 client ──per-second sample──▶ MQTT live topic
+                                                  │
+              ┌───────────────────────────────────┤
+              │                                   │
+              ▼                                   ▼
+   Inspector live chart                Mac mini orchestrator
+   (Chart.js, updates 1/s)                       │
+                                                  ├─▶ InfluxDB (write)
+                                                  │       │
+                                                  │       └─▶ Grafana (optional)
+                                                  │
+                                                  └─▶ run_summary + Jain's FI on completion
 ```
 
 ---
@@ -160,15 +163,17 @@ uv sync
 docker compose up -d
 ```
 
-Verify:
+Verify core services:
 ```bash
 curl localhost:8086/health           # InfluxDB → {"status":"pass",...}
-docker compose ps                    # All three services Up
+docker compose ps                    # mosquitto + influxdb both Up
 ```
 
-> Grafana datasource and syncbench dashboard are auto-provisioned on first start. No manual setup needed.
-
-Open `http://localhost:3000` (admin / atf-grafana-2026) to verify Grafana is up.
+> **Grafana is optional.** The Inspector has a built-in live chart. To start Grafana for historical analysis:
+> ```bash
+> docker compose --profile monitoring up -d grafana
+> open http://localhost:3000   # admin / atf-grafana-2026
+> ```
 
 ---
 
@@ -319,10 +324,24 @@ For other platforms (Windows, Android, etc.) and the abstraction architecture, s
 
 ## 7. Running Tests
 
-### Single-command execution
+### Option A — Web UI (recommended)
+
+```bash
+uv run atf-inspector
+open http://localhost:8080
+```
+
+1. Check the devices you want to include (only online agents are selectable)
+2. Set the duration (default: 60s)
+3. Press **▶ Start Run**
+4. Watch live throughput curves update every second
+5. Results table and Jain's Fairness Index appear when the run completes
+
+### Option B — CLI
 
 ```bash
 uv run atf-run scenarios/01_two_sta_equal.yaml      # 2 STAs, 60s
+uv run atf-run scenarios/04_six_sta_mixed.yaml      # 5 RPi + 1 NB, 60s
 uv run atf-run scenarios/00_smoke_test.yaml         # 1 STA, 30s (smoke test)
 ```
 
@@ -389,17 +408,25 @@ Ports are auto-assigned by the orchestrator — do not specify them in the YAML.
 
 ## 8. Viewing Results
 
-### Real-time Grafana dashboard
+### Inspector (primary — live chart + results)
 
-1. Open `http://localhost:3000` → Dashboards → **syncbench**
-2. Set time range: **Last 5 minutes**
-3. Set auto-refresh: **5s**
-4. Run `atf-run` — lines appear in real-time
+```bash
+uv run atf-inspector   # http://localhost:8080
+```
 
-The dashboard has three panels:
-- **Throughput per STA** (top): per-second time series, one line per STA per run
-- **Sync Offset per STA** (bottom-left): bar chart showing start-time jitter (target: < 100 ms)
-- **Live Avg Throughput per STA** (bottom-right): rolling average that updates every 5s during the test, persists after, switches when next test starts
+The Inspector is the primary UI. It shows:
+- **Left panel** — online devices with Wi-Fi band (2.4G / 5G / 6G), NTP offset, and live per-second throughput during a run
+- **Centre panel** — run phase badge (PREPARING → RUNNING → DONE), progress bar, results table (avg / stdev / retransmits / sync offset), and Jain's Fairness Index
+- **Right panel** — Chart.js live throughput curves, one line per device, all aligned to the same clock
+
+### Grafana (optional — historical analysis)
+
+```bash
+docker compose --profile monitoring up -d grafana
+open http://localhost:3000   # admin / atf-grafana-2026
+```
+
+Useful for comparing across multiple runs or writing custom Flux queries. Dashboards → **syncbench** → set time range to **Last 5 minutes**, auto-refresh **5s**.
 
 ### AP airtime collector (optional)
 
@@ -409,17 +436,7 @@ To capture per-station airtime usage from the AP's perspective (mt76 debugfs), r
 uv run atf-ap-collector --ap 192.168.1.1 --interval 1
 ```
 
-It SSHes into the AP every second, reads `/sys/kernel/debug/ieee80211/phy1/netdev:phy1-ap0/stations/{MAC}/airtime`, computes RX/TX delta percentages, and writes to InfluxDB measurement `ap_airtime`. The MAC↔agent_id mapping is auto-built by subscribing to retained `atf/agent/+/status` messages — no config needed.
-
-Grafana panel **AP Airtime per STA (TX %)** shows the resulting curves alongside throughput.
-
-### Inspector (live agent status)
-
-```bash
-uv run atf-inspector  # http://localhost:8080
-```
-
-Shows online/offline state of each agent, NTP offset, current state machine state.
+It SSHes into the AP every second, reads `/sys/kernel/debug/ieee80211/phy1/netdev:phy1-ap0/stations/{MAC}/airtime`, computes RX/TX delta percentages, and writes to InfluxDB measurement `ap_airtime`. The MAC↔agent_id mapping is auto-built from retained `atf/agent/+/status` messages — no config needed.
 
 ### Querying InfluxDB directly
 
@@ -439,23 +456,27 @@ curl -s -X POST "http://localhost:8086/api/v2/query?org=atf" \
 
 ## 9. Re-deploying Code
 
-After modifying agent code on Mac, push to all RPis:
+After modifying agent code on Mac, push to all devices. Note: `rpi-sta-01`, `rpi-sta-02`, and `linux-nb-01` were deployed before the project rename and use `atf-validator` as the repo directory; newer devices use `syncbench`.
 
 ```bash
-for ip in 192.168.1.221 192.168.1.233; do
+# Devices using ~/syncbench (rpi-sta-03 onwards)
+for ip in 192.168.1.205 192.168.1.159 192.168.1.223; do
   rsync -av --exclude='.git' --exclude='.venv' --exclude='__pycache__' \
     -e "ssh -i ~/.ssh/id_ed25519_personal" \
     ~/workspace/syncbench/ mars@$ip:~/syncbench/
   ssh -i ~/.ssh/id_ed25519_personal mars@$ip "sudo systemctl restart atf-agent"
 done
+
+# Devices using ~/atf-validator (rpi-sta-01, rpi-sta-02, linux-nb-01)
+for ip in 192.168.1.221 192.168.1.233 192.168.1.241; do
+  rsync -av --exclude='.git' --exclude='.venv' --exclude='__pycache__' \
+    -e "ssh -i ~/.ssh/id_ed25519_personal" \
+    ~/workspace/syncbench/ mars@$ip:~/atf-validator/
+  ssh -i ~/.ssh/id_ed25519_personal mars@$ip "sudo systemctl restart atf-agent"
+done
 ```
 
-Controller-side changes (orchestrator, scenarios, dashboard) take effect immediately on the next `atf-run`.
-
-For Grafana dashboard JSON changes:
-```bash
-curl -s -X POST -u admin:atf-grafana-2026 http://localhost:3000/api/admin/provisioning/dashboards/reload
-```
+Controller-side changes (orchestrator, Inspector, scenarios) take effect immediately — just restart the Inspector process.
 
 ---
 
@@ -509,22 +530,21 @@ Common causes:
 - iperf3 version mismatch in JSON parsing — fixed by current text-mode streaming
 - Agent thread crashed — see traceback in journalctl
 
-### Grafana shows no data
+### Inspector shows no chart data after run
 
-1. Verify InfluxDB has data:
+1. Check the browser console (F12) for SSE errors
+2. Verify InfluxDB is running: `curl localhost:8086/health`
+3. Check that `INFLUXDB_TOKEN` is set in `.env` — the Inspector loads it automatically on startup
+4. Restart the Inspector: `pkill -f atf-inspector && uv run atf-inspector`
+
+### Grafana shows no data (optional feature)
+
+1. Verify Grafana is started with the monitoring profile:
    ```bash
-   curl -s -u admin:atf-admin-2026 http://localhost:8086/health
+   docker compose --profile monitoring up -d grafana
    ```
-2. Verify Grafana datasource is provisioned:
-   ```bash
-   curl -s -u admin:atf-grafana-2026 http://localhost:3000/api/datasources
-   ```
-   Should show `atf-influxdb`.
-3. Check time range covers when the test ran (default: last 15 min)
-4. Force dashboard reload:
-   ```bash
-   curl -s -X POST -u admin:atf-grafana-2026 http://localhost:3000/api/admin/provisioning/dashboards/reload
-   ```
+2. Verify datasource: `curl -s -u admin:atf-grafana-2026 http://localhost:3000/api/datasources` → should show `atf-influxdb`
+3. Check time range covers when the test ran
 
 ### Sync offset > 100 ms
 
