@@ -248,10 +248,13 @@ const chart = new Chart(ctx, {
 
 function initChart(agentIds) {
   agentIds.forEach(id => agentColor(id));  // ensure colors assigned
-  chart.data.labels = [];
+  // Pre-fill labels and null data for the full duration so x-axis is fixed width
+  // Labels: 1s..{dur}s (end-of-interval, so last label reads "{dur}s" not "{dur-1}s")
+  const dur = durationSec || 60;
+  chart.data.labels = Array.from({ length: dur }, (_, i) => (i + 1) + 's');
   chart.data.datasets = agentIds.map(id => ({
     label: id,
-    data: [],
+    data: new Array(dur).fill(null),
     borderColor: agentColor(id),
     backgroundColor: agentColor(id).replace('hsl', 'hsla').replace(')', ', 0.1)'),
     borderWidth: 2,
@@ -268,21 +271,16 @@ function initChart(agentIds) {
   ).join('');
 }
 
-// Metronome tick: extends the chart by one column (1 second) and dequeues
-// one sample per agent. If an agent has no pending sample yet, push null —
-// spanGaps:true makes the line visually skip that point but keep continuity.
+// Metronome tick: fills in the current second's slot in the pre-allocated chart.
+// x-axis stays fixed width; data fills from left to right.
 function metronomeTick() {
-  chart.data.labels.push(metronomeSec + 's');
+  const idx = metronomeSec;
   activeAgents.forEach(id => {
     const queue = sampleQueue[id] || [];
     const value = queue.length > 0 ? queue.shift() : null;
     const ds = chart.data.datasets.find(d => d.label === id);
-    if (ds) ds.data.push(value);
+    if (ds && idx < ds.data.length) ds.data[idx] = value;
   });
-  if (chart.data.labels.length > 120) {
-    chart.data.labels.shift();
-    chart.data.datasets.forEach(d => d.data.shift());
-  }
   chart.update('none');
   metronomeSec++;
 }
@@ -489,10 +487,19 @@ function subscribeRunStream(rid, agentIds) {
 
     if (event === 'done') {
       stopElapsedTimer();
-      // Drain any samples still in queues by ticking once per remaining sample
-      const maxRemaining = Math.max(0, ...activeAgents.map(id => (sampleQueue[id] || []).length));
-      for (let i = 0; i < maxRemaining; i++) metronomeTick();
       if (metronome) { clearInterval(metronome); metronome = null; }
+      // Force-fill any remaining queued samples into their pre-allocated slots.
+      // Handles MQTT samples that arrived after their corresponding tick fired.
+      activeAgents.forEach(id => {
+        const queue = sampleQueue[id] || [];
+        const ds = chart.data.datasets.find(d => d.label === id);
+        if (!ds) return;
+        let idx = metronomeSec;
+        while (queue.length > 0 && idx < ds.data.length) {
+          ds.data[idx++] = queue.shift();
+        }
+      });
+      chart.update('none');
       setPhase('done');
       document.getElementById('chart-subtitle').textContent = `${durationSec}s · completed`;
       renderFinalResults(data);
