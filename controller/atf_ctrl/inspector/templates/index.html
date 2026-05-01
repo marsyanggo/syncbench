@@ -206,8 +206,15 @@ let runEventSource = null;
 let elapsedSec = 0;
 let durationSec = 60;
 let elapsedTimer = null;
-let rollingData = {};     // agent_id → {sum, count}
-let firstSampleTsMs = null;  // ts_ms of first sample — used as x-axis origin
+let rollingData = {};          // agent_id → {sum, count, latest}
+let firstSampleTsMs = null;   // ts_ms of first sample from any agent — used to start metronome
+// Metronome model: a single 1 Hz timer drives the chart. Each tick, each agent's
+// pending FIFO queue is dequeued by one sample (or null if empty). All lines
+// therefore advance one step in lockstep, regardless of MQTT arrival jitter.
+const sampleQueue = {};        // agent_id → [throughput_mbps, ...] pending samples
+let metronome = null;          // setInterval handle
+let metronomeSec = 0;
+let activeAgents = [];         // agents in the current run (for tick iteration)
 
 // ─── Chart ────────────────────────────────────────────────────────────────────
 const ctx = document.getElementById('throughput-chart').getContext('2d');
@@ -261,21 +268,23 @@ function initChart(agentIds) {
   ).join('');
 }
 
-function pushChartSample(agentId, throughputMbps, tsSec) {
-  const label = tsSec + 's';
-  if (!chart.data.labels.includes(label)) {
-    chart.data.labels.push(label);
-    chart.data.datasets.forEach(ds => ds.data.push(null));
-  }
-  const labelIdx = chart.data.labels.indexOf(label);
-  const ds = chart.data.datasets.find(d => d.label === agentId);
-  if (ds) ds.data[labelIdx] = throughputMbps;
-
+// Metronome tick: extends the chart by one column (1 second) and dequeues
+// one sample per agent. If an agent has no pending sample yet, push null —
+// spanGaps:true makes the line visually skip that point but keep continuity.
+function metronomeTick() {
+  chart.data.labels.push(metronomeSec + 's');
+  activeAgents.forEach(id => {
+    const queue = sampleQueue[id] || [];
+    const value = queue.length > 0 ? queue.shift() : null;
+    const ds = chart.data.datasets.find(d => d.label === id);
+    if (ds) ds.data.push(value);
+  });
   if (chart.data.labels.length > 120) {
     chart.data.labels.shift();
     chart.data.datasets.forEach(d => d.data.shift());
   }
   chart.update('none');
+  metronomeSec++;
 }
 
 // ─── Agent list (SSE /events) ─────────────────────────────────────────────────
@@ -374,6 +383,11 @@ document.getElementById('btn-run').addEventListener('click', async () => {
   rollingData = {};
   firstSampleTsMs = null;
   runStartUnixMs = null;
+  Object.keys(sampleQueue).forEach(k => delete sampleQueue[k]);
+  if (metronome) { clearInterval(metronome); metronome = null; }
+  metronomeSec = 0;
+  activeAgents = agentIds.slice();
+  agentIds.forEach(id => sampleQueue[id] = []);
   initChart(agentIds);
   setPhase('preparing');
 
@@ -444,17 +458,21 @@ function subscribeRunStream(rid, agentIds) {
         el.style.color = agentColor(agent_id);
       }
 
-      // Start timer on first real sample (iperf3 actually running)
+      // Always queue the sample
+      if (!sampleQueue[agent_id]) sampleQueue[agent_id] = [];
+      sampleQueue[agent_id].push(throughput_mbps);
+
+      // First sample from any agent → arm the metronome.
+      // Delay the first tick by 250ms so that other agents whose samples are
+      // in flight (typical MQTT jitter < 100ms) can queue up before x=0 is drawn.
       if (!firstSampleTsMs) {
         firstSampleTsMs = ts_ms;
         startElapsedTimer(durationSec);
+        setTimeout(() => {
+          metronomeTick();
+          metronome = setInterval(metronomeTick, 1000);
+        }, 250);
       }
-
-      // x-axis: floor((ts_ms - start_unix_ms) / 1000)
-      // Math.floor ensures all agents' first samples (t0=0, offset <1000ms) → same bucket x=0
-      const origin = runStartUnixMs || firstSampleTsMs;
-      const secElapsed = Math.max(0, Math.floor((ts_ms - origin) / 1000));
-      pushChartSample(agent_id, throughput_mbps, secElapsed);
 
       // Middle panel: show rolling avg
       const row = document.getElementById(`row-${agent_id}`);
@@ -471,6 +489,10 @@ function subscribeRunStream(rid, agentIds) {
 
     if (event === 'done') {
       stopElapsedTimer();
+      // Drain any samples still in queues by ticking once per remaining sample
+      const maxRemaining = Math.max(0, ...activeAgents.map(id => (sampleQueue[id] || []).length));
+      for (let i = 0; i < maxRemaining; i++) metronomeTick();
+      if (metronome) { clearInterval(metronome); metronome = null; }
       setPhase('done');
       document.getElementById('chart-subtitle').textContent = `${durationSec}s · completed`;
       renderFinalResults(data);
@@ -481,6 +503,7 @@ function subscribeRunStream(rid, agentIds) {
 
     if (event === 'error') {
       stopElapsedTimer();
+      if (metronome) { clearInterval(metronome); metronome = null; }
       setPhase('error', data.error);
       runEventSource.close();
       runId = null;
