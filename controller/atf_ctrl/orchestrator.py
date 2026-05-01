@@ -163,7 +163,7 @@ class Orchestrator:
         # Phase 2: Start
         start_ms = int(time.time() * 1000) + START_DELAY_MS
         logger.info("Phase 2: Broadcasting start_at (T+%dms)", START_DELAY_MS)
-        emit("phase", {"phase": "running", "run_id": run_id, "duration_sec": scenario.duration_sec})
+        emit("phase", {"phase": "running", "run_id": run_id, "duration_sec": scenario.duration_sec, "start_unix_ms": start_ms})
         self._bus.publish(
             "atf/ctrl/broadcast/start_at",
             {

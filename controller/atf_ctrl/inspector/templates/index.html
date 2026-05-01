@@ -198,6 +198,10 @@ function agentColor(id) {
 let agents = [];          // [{agent_id, online, platform, ntp_display}, ...]
 let selected = new Set();
 let runId = null;
+// offline grace period: agent_id → setTimeout handle
+// when an agent goes offline while selected, we wait 8s to confirm before auto-deselect
+const OFFLINE_GRACE_MS = 8000;
+const offlineTimers = {};
 let runEventSource = null;
 let elapsedSec = 0;
 let durationSec = 60;
@@ -278,6 +282,26 @@ function pushChartSample(agentId, throughputMbps, tsSec) {
 const agentEs = new EventSource('/events');
 agentEs.onmessage = e => {
   agents = JSON.parse(e.data);
+
+  agents.forEach(a => {
+    if (a.online) {
+      // came back online — cancel any pending auto-deselect
+      if (offlineTimers[a.agent_id]) {
+        clearTimeout(offlineTimers[a.agent_id]);
+        delete offlineTimers[a.agent_id];
+      }
+    } else if (selected.has(a.agent_id) && !offlineTimers[a.agent_id] && runId === null) {
+      // went offline while selected — start grace period
+      offlineTimers[a.agent_id] = setTimeout(() => {
+        delete offlineTimers[a.agent_id];
+        if (selected.has(a.agent_id)) {
+          selected.delete(a.agent_id);
+          renderAgentList();
+        }
+      }, OFFLINE_GRACE_MS);
+    }
+  });
+
   renderAgentList();
   const online = agents.filter(a => a.online).length;
   document.getElementById('broker-info').textContent =
@@ -298,15 +322,22 @@ function renderAgentList() {
     const color = a.online ? agentColor(a.agent_id) : '#475569';
     const isSel = selected.has(a.agent_id);
     const isRunning = runId !== null;
+    const isPendingOffline = !a.online && isSel && !!offlineTimers[a.agent_id];
+    // offline but selected and in grace period → allow manual uncheck
+    const canToggle = (a.online || isPendingOffline) && !isRunning;
     return `
-    <div class="agent-item ${isSel ? 'selected' : ''} ${!a.online ? 'offline-item' : ''}"
-         onclick="${a.online && !isRunning ? `toggleAgent('${a.agent_id}')` : ''}">
-      <input type="checkbox" ${isSel ? 'checked' : ''} ${!a.online || isRunning ? 'disabled' : ''}
-             onclick="event.stopPropagation(); ${a.online && !isRunning ? `toggleAgent('${a.agent_id}')` : ''}">
+    <div class="agent-item ${isSel ? 'selected' : ''} ${!a.online && !isPendingOffline ? 'offline-item' : ''}"
+         onclick="${canToggle ? `toggleAgent('${a.agent_id}')` : ''}">
+      <input type="checkbox" ${isSel ? 'checked' : ''} ${!canToggle ? 'disabled' : ''}
+             onclick="event.stopPropagation(); ${canToggle ? `toggleAgent('${a.agent_id}')` : ''}">
       <div class="agent-dot ${a.online ? 'online' : 'offline'}"></div>
       <div class="agent-info">
         <div class="agent-id">${a.agent_id}</div>
-        <div class="agent-meta">${a.platform || '—'} · ${a.band || '?'} · ${a.ntp_display || '—'}</div>
+        <div class="agent-meta">
+          ${isPendingOffline
+            ? `<span style="color:#f59e0b">⚠ offline — auto-deselecting in 8s</span>`
+            : `${a.platform || '—'} · ${a.band || '?'} · ${a.ntp_display || '—'}`}
+        </div>
       </div>
       <div class="agent-mbps"
            id="mbps-${a.agent_id}"
@@ -342,6 +373,7 @@ document.getElementById('btn-run').addEventListener('click', async () => {
   const agentIds = [...selected];
   rollingData = {};
   firstSampleTsMs = null;
+  runStartUnixMs = null;
   initChart(agentIds);
   setPhase('preparing');
 
@@ -373,7 +405,7 @@ document.getElementById('btn-run').addEventListener('click', async () => {
 });
 
 // ─── Run SSE stream ───────────────────────────────────────────────────────────
-let startTsMs = null;
+let runStartUnixMs = null;  // start_unix_ms from orchestrator — all agents aligned to this
 
 function subscribeRunStream(rid, agentIds) {
   if (runEventSource) runEventSource.close();
@@ -384,7 +416,18 @@ function subscribeRunStream(rid, agentIds) {
 
     if (event === 'phase') {
       setPhase(data.phase);
-      // Timer starts on first sample, not here
+      if (data.phase === 'running' && data.start_unix_ms) {
+        // Record the exact start time broadcast to all agents — used as x-axis origin
+        // Do NOT start the timer yet; wait for first real iperf3 sample
+        runStartUnixMs = data.start_unix_ms;
+        durationSec = data.duration_sec || durationSec;
+      }
+      if (data.phase === 'collecting') {
+        // iperf3 is done — freeze timer at totalSec
+        stopElapsedTimer();
+        document.getElementById('progress-bar').style.width = '100%';
+        document.getElementById('elapsed-display').textContent = `${durationSec} / ${durationSec} sec elapsed`;
+      }
     }
 
     if (event === 'sample') {
@@ -401,12 +444,16 @@ function subscribeRunStream(rid, agentIds) {
         el.style.color = agentColor(agent_id);
       }
 
-      // Use RPi timestamp as x-axis origin (all agents aligned to same clock)
+      // Start timer on first real sample (iperf3 actually running)
       if (!firstSampleTsMs) {
         firstSampleTsMs = ts_ms;
-        startElapsedTimer(durationSec);  // start timer on first real sample
+        startElapsedTimer(durationSec);
       }
-      const secElapsed = Math.round((ts_ms - firstSampleTsMs) / 1000);
+
+      // x-axis: floor((ts_ms - start_unix_ms) / 1000)
+      // Math.floor ensures all agents' first samples (t0=0, offset <1000ms) → same bucket x=0
+      const origin = runStartUnixMs || firstSampleTsMs;
+      const secElapsed = Math.max(0, Math.floor((ts_ms - origin) / 1000));
       pushChartSample(agent_id, throughput_mbps, secElapsed);
 
       // Middle panel: show rolling avg
@@ -504,13 +551,15 @@ function setPhase(phase, msg) {
 }
 
 function startElapsedTimer(totalSec) {
+  stopElapsedTimer();
   elapsedSec = 0;
   document.getElementById('progress-bar').style.width = '0%';
   elapsedTimer = setInterval(() => {
-    elapsedSec++;
-    const pct = Math.min(100, (elapsedSec / totalSec) * 100);
+    elapsedSec = Math.min(elapsedSec + 1, totalSec);  // cap at totalSec
+    const pct = (elapsedSec / totalSec) * 100;
     document.getElementById('progress-bar').style.width = pct + '%';
     document.getElementById('elapsed-display').textContent = `${elapsedSec} / ${totalSec} sec elapsed`;
+    if (elapsedSec >= totalSec) stopElapsedTimer();
   }, 1000);
 }
 
