@@ -8,6 +8,10 @@ class TrafficConfig(BaseModel):
     port: int = 5201
     bandwidth_mbps: int | None = None  # UDP only
     parallel: int = 1
+    direction: Literal["uplink", "downlink", "bidirectional"] = "uplink"
+    # uplink:        device → Mac (device=client, Mac=server)  [default, existing behaviour]
+    # downlink:      Mac → device (Mac=client, device=server)
+    # bidirectional: both simultaneously via iperf3 --bidir
 
 
 class StationConfig(BaseModel):

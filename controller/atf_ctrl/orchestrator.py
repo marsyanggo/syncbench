@@ -77,6 +77,14 @@ class Orchestrator:
         self._results: dict[str, dict] = {}
         self._result_lock = threading.Lock()
         self._iperf3_procs: list[subprocess.Popen] = []
+        self._agent_ips: dict[str, str] = {}  # agent_id → IP (from heartbeat)
+        self._bus.subscribe("atf/agent/+/heartbeat", self._on_agent_heartbeat, qos=0)
+
+    def _on_agent_heartbeat(self, topic: str, payload: dict) -> None:
+        agent_id = payload.get("agent_id")
+        ip = payload.get("ip")
+        if agent_id and ip:
+            self._agent_ips[agent_id] = ip
 
     # ------------------------------------------------------------------
     # Public API
@@ -110,6 +118,7 @@ class Orchestrator:
                 "port": BASE_IPERF3_PORT + i,
                 "parallel": s.traffic.parallel,
                 "bandwidth_mbps": s.traffic.bandwidth_mbps,
+                "direction": s.traffic.direction,
             }
             for i, s in enumerate(scenario.stations)
         }
@@ -174,8 +183,17 @@ class Orchestrator:
             },
         )
 
-        # Phase 3: Wait
-        wait_sec = scenario.duration_sec + START_DELAY_MS / 1000 + 5
+        # Spawn downlink clients after start_at (agents are now listening as servers)
+        time.sleep(START_DELAY_MS / 1000)
+        self._start_iperf3_downlink_clients(
+            station_traffic, self._agent_ips, scenario.duration_sec
+        )
+
+        # Phase 3: Wait — downlink already slept START_DELAY_MS, adjust accordingly
+        has_downlink = any(
+            v.get("direction", "uplink") == "downlink" for v in station_traffic.values()
+        )
+        wait_sec = scenario.duration_sec + (0 if has_downlink else START_DELAY_MS / 1000) + 5
         logger.info("Phase 3: Waiting %.0fs for test to complete", wait_sec)
         time.sleep(wait_sec)
 
@@ -263,8 +281,12 @@ class Orchestrator:
             logger.warning("Live collector unavailable (non-fatal): %s", exc)
 
     def _start_iperf3_servers(self, station_traffic: dict) -> None:
+        """For uplink/bidirectional: spawn iperf3 servers on Mac (one per port)."""
         binary = _find_iperf3()
-        ports = sorted({v["port"] for v in station_traffic.values()})
+        ports = sorted({
+            v["port"] for v in station_traffic.values()
+            if v.get("direction", "uplink") in ("uplink", "bidirectional")
+        })
         for port in ports:
             proc = subprocess.Popen(
                 [binary, "-s", "-p", str(port)],
@@ -273,6 +295,27 @@ class Orchestrator:
             )
             self._iperf3_procs.append(proc)
             logger.info("iperf3 server started on port %d (pid %d)", port, proc.pid)
+
+    def _start_iperf3_downlink_clients(
+        self, station_traffic: dict, agent_ips: dict[str, str], duration_sec: int
+    ) -> None:
+        """For downlink: spawn iperf3 clients on Mac targeting each device's IP."""
+        binary = _find_iperf3()
+        for node, cfg in station_traffic.items():
+            if cfg.get("direction", "uplink") != "downlink":
+                continue
+            ip = agent_ips.get(node)
+            if not ip:
+                logger.warning("No IP known for %s — skipping downlink client", node)
+                continue
+            proc = subprocess.Popen(
+                [binary, "--client", ip, "--port", str(cfg["port"]),
+                 "--time", str(duration_sec), "--interval", "1", "--forceflush"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            self._iperf3_procs.append(proc)
+            logger.info("iperf3 downlink client → %s:%d (pid %d)", ip, cfg["port"], proc.pid)
 
     def _stop_iperf3_servers(self) -> None:
         for proc in self._iperf3_procs:

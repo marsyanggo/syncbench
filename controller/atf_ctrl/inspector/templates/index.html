@@ -37,6 +37,10 @@
   .agent-mbps { font-size: 12px; font-weight: 600; text-align: right; min-width: 52px; color: #2d3148; transition: color 0.3s; }
   .agent-ip { font-size: 10px; color: #475569; text-align: right; min-width: 52px; font-family: 'SF Mono', monospace; }
   .agent-mbps.active { }
+  .dir-toggle { display: flex; gap: 2px; flex-shrink: 0; }
+  .dir-btn { background: #1e2235; border: 1px solid #2d3148; color: #475569; border-radius: 3px; padding: 2px 5px; font-size: 11px; cursor: pointer; transition: all 0.15s; user-select: none; }
+  .dir-btn:hover { border-color: #3b4fd8; color: #7c8cf8; }
+  .dir-btn.active { background: #1e2a4a; border-color: #3b4fd8; color: #7c8cf8; }
 
   /* Run controls */
   .run-controls { padding: 12px; border-top: 1px solid #2d3148; flex-shrink: 0; }
@@ -198,6 +202,13 @@ function agentColor(id) {
 // ─── State ────────────────────────────────────────────────────────────────────
 let agents = [];          // [{agent_id, online, platform, ntp_display}, ...]
 let selected = new Set();
+const agentDirection = {}; // agent_id → 'uplink' | 'downlink' | 'bidirectional'
+
+function getDirection(id) { return agentDirection[id] || 'uplink'; }
+function setDirection(id, dir) {
+  agentDirection[id] = dir;
+  renderAgentList();
+}
 let runId = null;
 // offline grace period: agent_id → setTimeout handle
 // when an agent goes offline while selected, we wait 8s to confirm before auto-deselect
@@ -347,6 +358,15 @@ function renderAgentList() {
             : `${a.platform || '—'} · ${a.band || '?'} · ${a.ntp_display || '—'}`}
         </div>
         ${a.ip ? `<div class="agent-ip">${a.ip}</div>` : ''}
+        ${isSel && !isRunning ? `
+        <div class="dir-toggle" onclick="event.stopPropagation()">
+          ${['uplink','downlink','bidirectional'].map(d => `
+            <button class="dir-btn ${getDirection(a.agent_id) === d ? 'active' : ''}"
+              title="${d}"
+              onclick="setDirection('${a.agent_id}','${d}')">
+              ${ d === 'uplink' ? '↑' : d === 'downlink' ? '↓' : '↕' }
+            </button>`).join('')}
+        </div>` : ''}
       </div>
       <div class="agent-mbps"
            id="mbps-${a.agent_id}"
@@ -403,7 +423,11 @@ document.getElementById('btn-run').addEventListener('click', async () => {
   const res = await fetch('/api/run', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ agents: agentIds, duration: durationSec }),
+    body: JSON.stringify({
+      agents: agentIds,
+      duration: durationSec,
+      directions: Object.fromEntries(agentIds.map(id => [id, getDirection(id)])),
+    }),
   });
   if (!res.ok) {
     const err = await res.json();

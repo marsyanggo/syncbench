@@ -11,10 +11,15 @@ Usage:
 
 import math
 import re
+import shutil
 import subprocess
 import time
 from dataclasses import dataclass, field
 from typing import Callable
+
+
+def _find_iperf3() -> str:
+    return shutil.which("iperf3") or shutil.which("iperf3", path="/usr/bin:/usr/local/bin:/usr/sbin") or "iperf3"
 
 # TCP interval line:
 # [  5]   0.00-1.00   sec  16.1 MBytes   135 Mbits/sec    0    321 KBytes
@@ -67,21 +72,30 @@ def run(
     protocol: str = "tcp",
     bandwidth_mbps: int | None = None,
     parallel: int = 1,
+    direction: str = "uplink",
     on_sample: Callable[[ThroughputSample], None] | None = None,
 ) -> Iperf3Result:
-    """Run iperf3 client, streaming per-second samples via on_sample callback.
+    """Run iperf3 client (uplink/bidirectional), streaming per-second samples.
+
+    direction:
+      uplink        — device→Mac (client mode, existing behaviour)
+      bidirectional — device↔Mac simultaneously (--bidir flag)
+      downlink      — Mac→device; caller must use run_server() on the device
+                      and spawn the iperf3 client on the Mac side instead.
 
     Blocks until the test completes. on_sample() is called from this thread
     for each 1-second interval as it arrives.
     """
     cmd = [
-        "iperf3", "--client", server,
+        _find_iperf3(), "--client", server,
         "--port", str(port),
         "--time", str(duration),
         "--interval", "1",
         "--parallel", str(parallel),
-        "--forceflush",  # flush stdout after each interval (required when piped, not a TTY)
+        "--forceflush",
     ]
+    if direction == "bidirectional":
+        cmd.append("--bidir")
     if protocol == "udp":
         cmd.append("--udp")
         if bandwidth_mbps:
@@ -122,6 +136,58 @@ def run(
 
     if not samples:
         result.error = "no interval data received from iperf3"
+        return result
+
+    result.samples = samples
+    _compute_stats(result)
+    return result
+
+
+def run_server(
+    port: int = 5201,
+    duration: int = 30,
+    on_sample: Callable[[ThroughputSample], None] | None = None,
+) -> Iperf3Result:
+    """Run iperf3 in server mode (one-shot) for downlink direction.
+
+    Spawns `iperf3 --server --one-off` on the given port.  The Mac-side
+    orchestrator will connect as client.  Exits after one client connection.
+    Streams per-second samples via on_sample as they arrive.
+    """
+    cmd = [
+        _find_iperf3(), "--server", "--one-off",
+        "--port", str(port),
+        "--interval", "1",
+        "--forceflush",
+    ]
+    result = Iperf3Result(server="(server)", protocol="tcp", duration_sec=duration)
+    test_start_ms = int(time.time() * 1000)
+
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+        )
+    except FileNotFoundError:
+        result.error = "iperf3 not found"
+        return result
+
+    samples: list[ThroughputSample] = []
+    for line in proc.stdout:
+        sample = _parse_line(line, is_udp=False, test_start_ms=test_start_ms)
+        if sample is None:
+            continue
+        samples.append(sample)
+        if on_sample:
+            on_sample(sample)
+
+    proc.wait(timeout=duration + 30)
+
+    if not samples:
+        result.error = "no interval data from iperf3 server"
         return result
 
     result.samples = samples

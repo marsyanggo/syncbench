@@ -219,17 +219,30 @@ class ATFAgent:
                 qos=0,
             )
 
-        # Run iperf3
+        # Run iperf3 — direction determines client vs server role
         cfg = self._traffic_config or {}
-        result = run_iperf3(
-            server=cfg.get("server", "localhost"),
-            port=cfg.get("port", 5201),
-            duration=duration_sec,
-            protocol="udp" if cfg.get("type", "").endswith("udp") else "tcp",
-            bandwidth_mbps=cfg.get("bandwidth_mbps"),
-            parallel=cfg.get("parallel", 1),
-            on_sample=_on_sample,
-        )
+        direction = cfg.get("direction", "uplink")
+
+        if direction == "downlink":
+            # Device acts as iperf3 server; orchestrator spawns client on Mac
+            from agent.atf_agent.traffic.iperf3 import run_server as run_iperf3_server
+            result = run_iperf3_server(
+                port=cfg.get("port", 5201),
+                duration=duration_sec,
+                on_sample=_on_sample,
+            )
+        else:
+            # uplink or bidirectional — device acts as iperf3 client
+            result = run_iperf3(
+                server=cfg.get("server", "localhost"),
+                port=cfg.get("port", 5201),
+                duration=duration_sec,
+                protocol="udp" if cfg.get("type", "").endswith("udp") else "tcp",
+                bandwidth_mbps=cfg.get("bandwidth_mbps"),
+                parallel=cfg.get("parallel", 1),
+                direction=direction,
+                on_sample=_on_sample,
+            )
 
         self._set_state("REPORTING")
 
