@@ -127,6 +127,7 @@ class ATFAgent:
                     "ntp_offset_ms": self._platform.get_ntp_offset_ms(),
                     "ntp_synced": self._platform.is_ntp_synced(),
                     "band": self._platform.get_band(),
+                    "ip": self._platform.get_wifi_ip(),
                 },
                 qos=0,
             )

@@ -35,6 +35,7 @@
   .agent-id { font-size: 12px; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .agent-meta { font-size: 10px; color: #64748b; margin-top: 1px; }
   .agent-mbps { font-size: 12px; font-weight: 600; text-align: right; min-width: 52px; color: #2d3148; transition: color 0.3s; }
+  .agent-ip { font-size: 10px; color: #475569; text-align: right; min-width: 52px; font-family: 'SF Mono', monospace; }
   .agent-mbps.active { }
 
   /* Run controls */
@@ -345,6 +346,7 @@ function renderAgentList() {
             ? `<span style="color:#f59e0b">⚠ offline — auto-deselecting in 8s</span>`
             : `${a.platform || '—'} · ${a.band || '?'} · ${a.ntp_display || '—'}`}
         </div>
+        ${a.ip ? `<div class="agent-ip">${a.ip}</div>` : ''}
       </div>
       <div class="agent-mbps"
            id="mbps-${a.agent_id}"

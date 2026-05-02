@@ -12,6 +12,7 @@ class AgentState:
     ntp_offset_ms: float | None = None
     ntp_synced: bool = False
     band: str = "unknown"
+    ip: str | None = None
     last_seen: float = field(default_factory=time.time)
 
     @property
@@ -41,6 +42,8 @@ class InspectorState:
             a.ntp_offset_ms = payload.get("ntp_offset_ms")
             a.ntp_synced = payload.get("ntp_synced", False)
             a.band = payload.get("band", a.band)
+            if payload.get("ip"):
+                a.ip = payload["ip"]
             a.last_seen = time.time()
 
     def update_status(self, agent_id: str, payload: dict) -> None:

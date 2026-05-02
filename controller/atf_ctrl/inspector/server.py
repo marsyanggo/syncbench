@@ -97,6 +97,7 @@ async def sse_events():
                         "online": a.is_online,
                         "platform": a.platform,
                         "band": a.band,
+                        "ip": a.ip,
                         "ntp_display": a.ntp_display,
                         "status_icon": a.status_icon,
                     }

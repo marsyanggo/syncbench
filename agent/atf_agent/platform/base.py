@@ -56,6 +56,21 @@ class PlatformAdapter(ABC):
         """Return True if the system clock is NTP-synchronized."""
         ...
 
+    def get_wifi_ip(self) -> str | None:
+        """Return the Wi-Fi interface's IPv4 address, or None if not connected."""
+        iface = self.get_wifi_interface()
+        if not iface:
+            return None
+        try:
+            import socket, struct, fcntl
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            return socket.inet_ntoa(fcntl.ioctl(
+                s.fileno(), 0x8915,  # SIOCGIFADDR
+                struct.pack('256s', iface[:15].encode())
+            )[20:24])
+        except Exception:
+            return None
+
     def get_band(self) -> str:
         """Return connected Wi-Fi band: '2.4G', '5G', '6G', or 'unknown'.
 
