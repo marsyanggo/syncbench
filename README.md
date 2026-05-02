@@ -153,6 +153,39 @@ A controller publishes to an MQTT broker; agents on each client device subscribe
 
 ---
 
+## Feature History
+
+> Newest additions at the top.
+
+### Phase 2 — Integrated Web UI _(2026-04-30 → 2026-05-01)_
+
+- **Metronome-driven chart** — single 1 Hz timer drives all throughput lines in lockstep; immune to MQTT arrival jitter so curves always advance together
+- **Fixed-width x-axis** — chart pre-allocated to full test duration (`1s..{dur}s`); lines fill left-to-right rather than growing
+- **Wi-Fi IP display** — each device reports its current IP via `SIOCGIFADDR` ioctl; shown in the Inspector device list next to band and NTP offset
+- **Offline device guard** — 8-second grace period with orange warning before auto-deselecting a device that drops connection; cancels automatically if device returns
+- **Native Chart.js** — no Grafana tab needed; golden ratio hue assigns visually distinct colors to up to 1000+ devices
+- **One-click run from browser** — select devices → set duration → Start Run; live per-second throughput, phase badge, progress bar, results table, and Jain's FI all in one page
+- **`POST /api/run` + SSE stream** — Inspector backend triggers Orchestrator in background thread; `GET /api/run/{id}/stream` delivers `phase / sample / done / error` events
+- **Wi-Fi band detection** — `PlatformAdapter.get_band()` derives 2.4G / 5G / 6G from `freq_mhz`; works on all Linux devices without per-platform override
+- **Grafana demoted to optional** — `docker compose --profile monitoring up -d grafana`; core stack is now just Mosquitto + InfluxDB
+
+### Phase 1 — Core Framework _(2026-04-25 → 2026-04-29)_
+
+- **6-STA heterogeneous testbed** — 5 × Raspberry Pi (RPi 4/5) + 1 × Linux laptop (Wi-Fi 6); demonstrates JFI drop from 0.886 (homogeneous) to 0.521 (mixed)
+- **ATF on/off case study** — confirmed AX4200 (MT7986A / mt76) does not enforce airtime fairness in HE80 OFDMA mode; `airtime_weight` bypassed by OFDMA RU scheduler
+- **AP airtime collector** — `atf-ap-collector` SSHes into the AP, reads mt76 debugfs per-station airtime, writes `ap_airtime` measurement to InfluxDB every second
+- **Auto markdown report + Jain's FI** — generated after every run; includes per-STA avg / stdev / p95 / retransmits / sync offset and fairness grade (Excellent / Good / Fair / Poor)
+- **`setup-linux.sh`** — one-script deployment for any Debian-based device (RPi, Ubuntu laptop, NUC); handles hostname, Wi-Fi join, power-save disable, iperf3/chrony/uv install, systemd service
+- **Sub-millisecond start synchronization** — NTP-anchored `sleep_until` (coarse sleep + 20 ms busy-wait); measured 0 ms offset across mixed ARM64 / x86_64 hardware
+- **Live iperf3 streaming** — `--forceflush` + line-buffered subprocess; per-second throughput pushed to MQTT and written to InfluxDB in real time
+- **Scenario system** — Pydantic v2 YAML with `extends` deep merge; port pool auto-assigned, no manual iperf3 server setup
+- **MQTT Orchestrator** — prepare → ack → start_at → wait → stop → collect; handles N agents, auto-spawns iperf3 servers, cleans up on failure
+- **Inspector v1** — FastAPI + SSE dark-theme dashboard; shows agent online/offline, NTP offset, state machine in real time
+- **`MQTTBus`** — shared MQTT abstraction (controller + agent); auto-injects envelope (v / ts / msg_id), LWT support
+- **`PlatformAdapter` ABC** — `LinuxAdapter` (RPi / Ubuntu) + `MacOSAdapter`; OS auto-detected at agent startup
+
+---
+
 ## Roadmap
 
 **Phase 1 — done.** Linux agents (RPi + x86_64), MQTT orchestration, sub-ms sync, InfluxDB, auto reports with Jain's FI, Wi-Fi ATF case study up to 6 STA.
