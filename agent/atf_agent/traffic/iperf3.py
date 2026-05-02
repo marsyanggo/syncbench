@@ -23,15 +23,17 @@ def _find_iperf3() -> str:
 
 # TCP interval line — client side (has retransmits + cwnd):
 # [  5]   0.00-1.00   sec  16.1 MBytes   135 Mbits/sec    0    321 KBytes
+# [  5][TX-C]   0.00-1.00   sec  6.38 MBytes  53.4 Mbits/sec    0    324 KBytes  (bidir)
 _TCP_RE = re.compile(
-    r"\[\s*\d+\]\s+(\d+\.\d+)-(\d+\.\d+)\s+sec\s+"
+    r"\[\s*\d+\](?:\[TX-C\])?\s+(\d+\.\d+)-(\d+\.\d+)\s+sec\s+"
     r"[\d.]+\s+\w+Bytes\s+([\d.]+)\s+Mbits/sec\s+(\d+)"
 )
 
-# TCP interval line — server side (no retransmits column):
+# TCP interval line — server side or bidir RX (no retransmits column):
 # [  5]   0.00-1.00   sec  16.1 MBytes   135 Mbits/sec
+# [  7][RX-C]   0.00-1.00   sec  23.9 MBytes   200 Mbits/sec   (bidir downlink)
 _TCP_SERVER_RE = re.compile(
-    r"\[\s*\d+\]\s+(\d+\.\d+)-(\d+\.\d+)\s+sec\s+"
+    r"\[\s*\d+\](?:\[RX-C\])?\s+(\d+\.\d+)-(\d+\.\d+)\s+sec\s+"
     r"[\d.]+\s+\w+Bytes\s+([\d.]+)\s+Mbits/sec\s*$"
 )
 
@@ -124,9 +126,44 @@ def run(
         return result
 
     is_udp = protocol == "udp"
+    is_bidir = direction == "bidirectional"
     samples: list[ThroughputSample] = []
+    # bidir: buffer TX-C sample until matching RX-C arrives, then combine
+    _bidir_tx: ThroughputSample | None = None
 
     for line in proc.stdout:
+        if is_bidir:
+            # TX-C line → buffer it
+            m_tx = _TCP_RE.search(line)
+            if m_tx and '[TX-C]' in line:
+                t0, t1 = float(m_tx.group(1)), float(m_tx.group(2))
+                if t1 - t0 <= 1.5:
+                    _bidir_tx = ThroughputSample(
+                        ts_ms=test_start_ms + int(t0 * 1000),
+                        interval_start=t0, interval_end=t1,
+                        throughput_mbps=float(m_tx.group(3)),
+                        retransmits=int(m_tx.group(4)), lost_pct=None,
+                    )
+                continue
+            # RX-C line → combine with buffered TX-C
+            m_rx = _TCP_SERVER_RE.search(line.rstrip())
+            if m_rx and '[RX-C]' in line:
+                t0, t1 = float(m_rx.group(1)), float(m_rx.group(2))
+                if t1 - t0 <= 1.5 and _bidir_tx is not None:
+                    sample = ThroughputSample(
+                        ts_ms=_bidir_tx.ts_ms,
+                        interval_start=_bidir_tx.interval_start,
+                        interval_end=_bidir_tx.interval_end,
+                        # combined TX+RX throughput
+                        throughput_mbps=_bidir_tx.throughput_mbps + float(m_rx.group(3)),
+                        retransmits=_bidir_tx.retransmits, lost_pct=None,
+                    )
+                    _bidir_tx = None
+                    samples.append(sample)
+                    if on_sample:
+                        on_sample(sample)
+            continue
+        # uplink or downlink (non-bidir)
         sample = _parse_line(line, is_udp, test_start_ms)
         if sample is None:
             continue
