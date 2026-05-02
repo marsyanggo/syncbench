@@ -1,6 +1,6 @@
 # Project Targets — syncbench
 
-_Last updated: 2026-04-30_
+_Last updated: 2026-05-01 (Phase 3 added)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-04-30_
 - [x] cli.py 自動載入 `.env`（不需手動 export INFLUXDB_TOKEN）
 - [x] orchestrator.py InfluxDB write error catch（防止 MQTT 連線 crash）
 - [x] README 更新：6-STA demo 影片 + reference results 表格
-- [ ] repo 轉 public（待律師確認）
+- [x] repo 轉 public（待律師確認）
 
 ---
 
@@ -87,6 +87,56 @@ _Last updated: 2026-04-30_
 - [x] `LinuxAdapter._IW`：`shutil.which` 解決 systemd PATH 不含 `/usr/sbin` 的問題
 - [x] `InspectorState.update_status`：retained MQTT 訊息不更新 `last_seen`，防止誤判 online
 - [x] Inspector MQTT 重連導致閃爍：排查確認是兩個 inspector 搶 client ID
+- [x] `PlatformAdapter.get_wifi_ip()`：SIOCGIFADDR ioctl，heartbeat 帶 ip，Inspector 左欄顯示
+- [x] Offline device 8 秒 grace period：選取裝置斷線 → 橘色警告 → 自動取消，可手動取消
+- [x] Chart 同步修正：metronome-driven rendering（1Hz 節拍器，所有線同步前進）
+- [x] Chart x 軸預先固定為完整 duration 寬度（`1s..{dur}s`），不隨時間延伸
+- [x] Timer 修正：第一個 iperf3 sample 到才開始倒數，`collecting` phase 停止並凍結
+
+---
+
+## Goal: Phase 3 — Traffic Direction + QoS Testing
+
+> 讓每次測試可以選擇流量方向（uplink/downlink/bidirectional）和 QoS 優先級（VO/VI/BE/BK），並在 Inspector 即時看到不同 AC class 的吞吐量差異。
+
+### Step 1 — Traffic Direction 支援
+
+- [x] `TrafficConfig` 加 `direction: uplink | downlink | bidirectional`
+- [x] Agent：downlink 模式 spawn iperf3 server（`_TCP_SERVER_RE` 修 server 端 regex 無 retransmits 欄位）
+- [x] Orchestrator：downlink 模式在 Mac 端 spawn iperf3 clients，+1.5s grace period 等 RPi bind port
+- [x] Orchestrator：從 heartbeat 自動建 `_agent_ips` dict
+- [x] Inspector UI：device 選取加方向切換（↑ / ↓ / ↕），Run Status 顯示方向 icon
+- [ ] Bidirectional（`--bidir`）：`--bidir` 輸出格式與 client/server 混合，parser 需修正（WIP）
+
+### Step 2 — QoS / DSCP 標記
+
+- [ ] `TrafficConfig` 加 `ac: vo | vi | be | bk`（自動映射 DSCP → iperf3 `--tos`）
+  - VO → DSCP EF (46) → `--tos 0xb8`
+  - VI → DSCP AF31 (26) → `--tos 0x68`
+  - BE → DSCP 0 → `--tos 0x00`
+  - BK → DSCP CS1 (8) → `--tos 0x20`
+- [ ] Agent：iperf3 command 加入 `--tos` 參數
+- [ ] AP 側確認 WMM 啟用（`iw dev phy1-ap0 info | grep WMM`）
+- [ ] Inspector UI：device 選取加 AC 選擇（VO / VI / BE / BK）
+
+### Step 3 — QoS 差異視覺化
+
+- [ ] Chart：不同 AC class 用圖例標示（顏色或 label）
+- [ ] 結果表：每台 agent 顯示 direction 和 AC class 欄位
+- [ ] `scenarios/05_qos_four_ac.yaml`：4 台各跑一個 AC 同時測試，觀察 AP 排程差異
+- [ ] JFI 按 AC 分組顯示（VO vs BE 的公平性差距可量化）
+
+### Step 4 — Bidirectional + QoS 混合 Scenario
+
+- [ ] `scenarios/06_downlink_be.yaml`：純 downlink baseline
+- [ ] `scenarios/07_bidir_vo_vs_bk.yaml`：VO 跟 BK 同時互打，驗證 AP 是否給 VO 優先
+- [ ] Inspector live chart：雙向模式同時顯示 uplink / downlink 兩條線（同一 device 兩條）
+
+### Step 5 — 文件 + Platform Adapter
+
+- [ ] `docs/methodology.md` 補充 DSCP mapping 表、WMM 驗證方法
+- [ ] `LinuxAdapter.get_link_info()`：補充回報 DSCP / TOS 實際值（驗證 marking 有效）
+- [ ] `MacOSAdapter.get_link_info()`：補 `freq_mhz`（替換 deprecated `airport` 指令）
 
 ---
 
@@ -94,4 +144,4 @@ _Last updated: 2026-04-30_
 
 - [x] 私人設備/時間確認、git identity、GPG、GitHub repo
 - [x] 開發日誌 WORKLOG.md
-- [ ] 諮詢加州執業智財/僱傭律師（California Labor Code §2870）
+- [x] 諮詢加州執業智財/僱傭律師（California Labor Code §2870）— skipped
