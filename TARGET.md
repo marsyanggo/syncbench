@@ -1,6 +1,6 @@
 # Project Targets — syncbench
 
-_Last updated: 2026-05-01 (Phase 3 added)_
+_Last updated: 2026-05-01_
 
 ---
 
@@ -106,7 +106,7 @@ _Last updated: 2026-05-01 (Phase 3 added)_
 - [x] Orchestrator：downlink 模式在 Mac 端 spawn iperf3 clients，+1.5s grace period 等 RPi bind port
 - [x] Orchestrator：從 heartbeat 自動建 `_agent_ips` dict
 - [x] Inspector UI：device 選取加方向切換（↑ / ↓ / ↕），Run Status 顯示方向 icon
-- [ ] Bidirectional（`--bidir`）：`--bidir` 輸出格式與 client/server 混合，parser 需修正（WIP）
+- [x] Bidirectional（`--bidir`）：TX-C buffer + RX-C 合成，`throughput = TX + RX`
 
 ### Step 2 — QoS / DSCP 標記
 

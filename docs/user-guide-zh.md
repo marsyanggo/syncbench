@@ -332,10 +332,14 @@ open http://localhost:8080
 ```
 
 1. 勾選要跑的裝置（只有 online 的 agent 可以選）
-2. 設定 duration（預設 60 秒）
-3. 按 **▶ Start Run**
-4. 右欄即時曲線每秒更新
-5. 測試結束後顯示結果表格和 Jain's Fairness Index
+2. 為每台選取的裝置選擇流量方向：
+   - **↑ uplink**（預設）— 裝置 → Mac
+   - **↓ downlink** — Mac → 裝置
+   - **↕ bidir** — 雙向同時；回報 TX+RX 合計吞吐量
+3. 設定 duration（預設 60 秒）
+4. 按 **▶ Start Run**
+5. 右欄即時曲線每秒更新；結果表格 Direction 欄顯示 ↑/↓/↕
+6. 測試結束後顯示結果表格和 Jain's Fairness Index
 
 ### 方法 B — CLI
 
@@ -403,6 +407,27 @@ stations:
 ```
 
 Port 由 orchestrator 自動分配，**不要在 YAML 裡指定**。
+
+要測試混合流量方向，在每台 station 的 traffic config 加 `direction`：
+
+```yaml
+stations:
+  - node: rpi-sta-01
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+      direction: uplink        # 裝置 → Mac（預設）
+  - node: rpi-sta-02
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+      direction: downlink      # Mac → 裝置
+  - node: rpi-sta-03
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+      direction: bidirectional # 雙向同時（回報 TX+RX 合計）
+```
 
 ---
 

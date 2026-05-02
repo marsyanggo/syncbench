@@ -157,6 +157,13 @@ A controller publishes to an MQTT broker; agents on each client device subscribe
 
 > Newest additions at the top.
 
+### Phase 3 — Traffic Direction + QoS _(2026-05-01 →)_
+
+- **Traffic direction per device** — each device independently selectable as ↑ uplink / ↓ downlink / ↕ bidirectional; shown as a dedicated column in the Run Status results table
+- **Downlink support** — device spawns `iperf3 --server --one-off`; Mac-side orchestrator spawns matching clients after start signal; 1.5 s grace period avoids connect-before-bind race
+- **Bidirectional support** — `iperf3 --bidir`; TX-C and RX-C lines parsed and merged into a single sample (`throughput = TX + RX`) per second
+- **QoS 1 live samples** — live MQTT samples upgraded from QoS 0 to QoS 1; eliminates occasional missing data points caused by packet loss on the Wi-Fi path
+
 ### Phase 2 — Integrated Web UI _(2026-04-30 → 2026-05-01)_
 
 - **Metronome-driven chart** — single 1 Hz timer drives all throughput lines in lockstep; immune to MQTT arrival jitter so curves always advance together
@@ -192,7 +199,7 @@ A controller publishes to an MQTT broker; agents on each client device subscribe
 
 **Phase 2 — done.** Integrated web UI: device selector, one-click run, native Chart.js live throughput (metronome-driven — all lines advance in lockstep), Jain's FI in-browser. Per-device Wi-Fi band + IP display. Offline guard with 8s grace period. Grafana demoted to optional.
 
-**Phase 3 — planned.** macOS, Windows, and Android (via Termux) platform adapters. Goal: same scenario YAML runs unmodified across all four platforms.
+**Phase 3 — in progress.** Traffic direction (uplink ✅ / downlink ✅ / bidirectional ✅) and QoS priority selection (VO/VI/BE/BK → DSCP marking). Goal: measure how a shared AP treats different traffic classes simultaneously.
 
 **Phase 4 — planned.** Scale to 10–50 endpoints. Broker tuning, scenario sharding, optional RF-isolation testbed integration.
 

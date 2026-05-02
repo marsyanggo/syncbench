@@ -332,10 +332,14 @@ open http://localhost:8080
 ```
 
 1. Check the devices you want to include (only online agents are selectable)
-2. Set the duration (default: 60s)
-3. Press **▶ Start Run**
-4. Watch live throughput curves update every second
-5. Results table and Jain's Fairness Index appear when the run completes
+2. For each selected device, choose the traffic direction:
+   - **↑ uplink** (default) — device → Mac
+   - **↓ downlink** — Mac → device
+   - **↕ bidir** — both simultaneously; reports TX+RX combined throughput
+3. Set the duration (default: 60s)
+4. Press **▶ Start Run**
+5. Watch live throughput curves update every second; the Direction column shows ↑/↓/↕ per device
+6. Results table and Jain's Fairness Index appear when the run completes
 
 ### Option B — CLI
 
@@ -403,6 +407,27 @@ stations:
 ```
 
 Ports are auto-assigned by the orchestrator — do not specify them in the YAML.
+
+To test mixed traffic directions, add `direction` to each station's traffic config:
+
+```yaml
+stations:
+  - node: rpi-sta-01
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+      direction: uplink        # device → Mac (default)
+  - node: rpi-sta-02
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+      direction: downlink      # Mac → device
+  - node: rpi-sta-03
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+      direction: bidirectional # both simultaneously (reports TX+RX combined)
+```
 
 ---
 
