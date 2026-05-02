@@ -21,11 +21,18 @@ from typing import Callable
 def _find_iperf3() -> str:
     return shutil.which("iperf3") or shutil.which("iperf3", path="/usr/bin:/usr/local/bin:/usr/sbin") or "iperf3"
 
-# TCP interval line:
+# TCP interval line — client side (has retransmits + cwnd):
 # [  5]   0.00-1.00   sec  16.1 MBytes   135 Mbits/sec    0    321 KBytes
 _TCP_RE = re.compile(
     r"\[\s*\d+\]\s+(\d+\.\d+)-(\d+\.\d+)\s+sec\s+"
     r"[\d.]+\s+\w+Bytes\s+([\d.]+)\s+Mbits/sec\s+(\d+)"
+)
+
+# TCP interval line — server side (no retransmits column):
+# [  5]   0.00-1.00   sec  16.1 MBytes   135 Mbits/sec
+_TCP_SERVER_RE = re.compile(
+    r"\[\s*\d+\]\s+(\d+\.\d+)-(\d+\.\d+)\s+sec\s+"
+    r"[\d.]+\s+\w+Bytes\s+([\d.]+)\s+Mbits/sec\s*$"
 )
 
 # UDP interval line:
@@ -177,9 +184,20 @@ def run_server(
 
     samples: list[ThroughputSample] = []
     for line in proc.stdout:
-        sample = _parse_line(line, is_udp=False, test_start_ms=test_start_ms)
-        if sample is None:
+        m = _TCP_SERVER_RE.search(line.rstrip())
+        if not m:
             continue
+        t0, t1 = float(m.group(1)), float(m.group(2))
+        if t1 - t0 > 1.5:  # skip final summary line
+            continue
+        sample = ThroughputSample(
+            ts_ms=test_start_ms + int(t0 * 1000),
+            interval_start=t0,
+            interval_end=t1,
+            throughput_mbps=float(m.group(3)),
+            retransmits=0,  # server side has no retransmits column
+            lost_pct=None,
+        )
         samples.append(sample)
         if on_sample:
             on_sample(sample)

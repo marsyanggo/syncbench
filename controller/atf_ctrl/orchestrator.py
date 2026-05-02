@@ -108,7 +108,8 @@ class Orchestrator:
 
         logger.info("Starting run %s — scenario: %s", run_id, scenario.name)
         logger.info("Expected agents: %s", expected)
-        emit("started", {"run_id": run_id, "agents": expected, "scenario": scenario.name})
+        directions = {s.node: s.traffic.direction for s in scenario.stations}
+        emit("started", {"run_id": run_id, "agents": expected, "scenario": scenario.name, "directions": directions})
 
         # Assign unique ports and build station_traffic map
         station_traffic = {
@@ -183,8 +184,10 @@ class Orchestrator:
             },
         )
 
-        # Spawn downlink clients after start_at (agents are now listening as servers)
-        time.sleep(START_DELAY_MS / 1000)
+        # Spawn downlink clients after start_at.
+        # Extra 1.5s grace period lets agents finish sleep_until + fork iperf3 server + bind port
+        # before the Mac's client attempts to connect.
+        time.sleep(START_DELAY_MS / 1000 + 1.5)
         self._start_iperf3_downlink_clients(
             station_traffic, self._agent_ips, scenario.duration_sec
         )
@@ -193,7 +196,8 @@ class Orchestrator:
         has_downlink = any(
             v.get("direction", "uplink") == "downlink" for v in station_traffic.values()
         )
-        wait_sec = scenario.duration_sec + (0 if has_downlink else START_DELAY_MS / 1000) + 5
+        # downlink: already slept START_DELAY + 1.5s in phase 2, subtract that from wait
+        wait_sec = scenario.duration_sec + (0 if has_downlink else START_DELAY_MS / 1000) + 5 - (1.5 if has_downlink else 0)
         logger.info("Phase 3: Waiting %.0fs for test to complete", wait_sec)
         time.sleep(wait_sec)
 

@@ -203,6 +203,10 @@ function agentColor(id) {
 let agents = [];          // [{agent_id, online, platform, ntp_display}, ...]
 let selected = new Set();
 const agentDirection = {}; // agent_id → 'uplink' | 'downlink' | 'bidirectional'
+let runDirections = {};    // directions for the current run (from started event)
+
+const DIR_ICON = { uplink: '↑', downlink: '↓', bidirectional: '↕' };
+const DIR_LABEL = { uplink: 'uplink', downlink: 'downlink', bidirectional: 'bidir' };
 
 function getDirection(id) { return agentDirection[id] || 'uplink'; }
 function setDirection(id, dir) {
@@ -411,11 +415,16 @@ document.getElementById('btn-run').addEventListener('click', async () => {
   initChart(agentIds);
   setPhase('preparing');
 
-  // Show placeholder rows
+  // Capture current directions for this run
+  runDirections = Object.fromEntries(agentIds.map(id => [id, getDirection(id)]));
+
+  // Show placeholder rows with direction indicator
   const tbody = document.getElementById('result-tbody');
   tbody.innerHTML = agentIds.map(id => `
     <tr id="row-${id}">
-      <td class="td-agent">${id}</td>
+      <td class="td-agent">
+        <span style="color:#475569;margin-right:4px">${DIR_ICON[runDirections[id]] || '↑'}</span>${id}
+      </td>
       <td class="td-dim" colspan="4">waiting…</td>
     </tr>`).join('');
   document.getElementById('jfi-row').style.display = 'none';
@@ -502,8 +511,9 @@ function subscribeRunStream(rid, agentIds) {
       const row = document.getElementById(`row-${agent_id}`);
       if (row) {
         const avg = rollingData[agent_id].sum / rollingData[agent_id].count;
+        const dIcon = DIR_ICON[runDirections[agent_id]] || '↑';
         row.innerHTML = `
-          <td class="td-agent">${agent_id}</td>
+          <td class="td-agent"><span style="color:#475569;margin-right:4px">${dIcon}</span>${agent_id}</td>
           <td class="td-num">${avg.toFixed(1)}</td>
           <td class="td-dim">live avg</td>
           <td class="td-dim">—</td>
@@ -550,10 +560,12 @@ function renderFinalResults(data) {
   const agentResults = data.agents || {};
   const tbody = document.getElementById('result-tbody');
   tbody.innerHTML = Object.entries(agentResults).map(([id, r]) => {
+    const dIcon = DIR_ICON[runDirections[id]] || '↑';
+    const agentCell = `<td class="td-agent"><span style="color:#475569;margin-right:4px">${dIcon}</span>${id}</td>`;
     if (r.status === 'complete') {
       const retWarn = (r.total_retransmits || 0) > 20;
       return `<tr id="row-${id}">
-        <td class="td-agent">${id}</td>
+        ${agentCell}
         <td class="td-num">${r.throughput_mean_mbps?.toFixed(1) ?? '—'}</td>
         <td class="td-dim">±${r.throughput_stdev_mbps?.toFixed(1) ?? '—'}</td>
         <td class="${retWarn ? 'td-warn' : 'td-good'}">${r.total_retransmits ?? '—'}</td>
@@ -561,7 +573,7 @@ function renderFinalResults(data) {
       </tr>`;
     } else {
       return `<tr id="row-${id}">
-        <td class="td-agent">${id}</td>
+        ${agentCell}
         <td colspan="4" class="td-warn">✗ ${r.error || r.status}</td>
       </tr>`;
     }
