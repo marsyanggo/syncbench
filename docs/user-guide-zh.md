@@ -415,9 +415,9 @@ uv run atf-inspector   # http://localhost:8080
 ```
 
 Inspector 是主要 UI，包含：
-- **左欄** — 在線裝置清單，顯示 Wi-Fi band（2.4G / 5G / 6G）、NTP offset、以及測試中每秒即時 throughput
-- **中欄** — run phase badge（PREPARING → RUNNING → DONE）、進度條、結果表（avg / stdev / retransmits / sync offset）、Jain's Fairness Index
-- **右欄** — Chart.js 即時吞吐量曲線，每台裝置一條線，全部對齊同一時鐘
+- **左欄** — 在線裝置清單，顯示 Wi-Fi band（2.4G / 5G / 6G）、IP 位址、NTP offset、以及測試中每秒即時 throughput。若已選取的裝置斷線，會顯示橘色警告倒數 8 秒後自動取消選取（8 秒內重新上線則自動恢復）
+- **中欄** — run phase badge（PREPARING → RUNNING → DONE）、進度條（預先固定為完整 duration 寬度）、結果表（avg / stdev / retransmits / sync offset）、Jain's Fairness Index
+- **右欄** — Chart.js 即時吞吐量曲線，每台裝置一條線；x 軸預先配置完整 duration 長度，曲線由左往右填入；所有裝置透過 metronome 節拍器同步前進，不受 MQTT jitter 影響
 
 ### Grafana（選用 — 歷史分析）
 

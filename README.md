@@ -40,7 +40,8 @@ The orchestration layer doesn't care what you're benchmarking. Wi-Fi airtime fai
 - **Pluggable platform adapters** — Raspberry Pi OS, Ubuntu/Debian today; macOS / Windows / Android on the Phase 2 roadmap. Same `PlatformAdapter` ABC, no scenario rewrites
 - **Integrated web UI** — built-in Inspector at `localhost:8080`; select devices, start a run, and watch live per-second throughput curves — no separate Grafana tab needed
 - **Automated reports** — Jain's Fairness Index, per-endpoint percentiles, and a markdown summary generated on every run
-- **Wi-Fi band detection** — each agent reports its connected band (2.4G / 5G / 6G) derived from the platform adapter; visible in the Inspector device list
+- **Wi-Fi band + IP display** — each agent reports its connected band (2.4G / 5G / 6G) and current IP address; both visible in the Inspector device list in real time
+- **Offline device guard** — if a selected device goes offline, an 8-second grace period with a visible warning fires before auto-deselecting it; device comes back online within 8s → no interruption
 - **Standards-only data path** — uses `iw`, `nl80211`, `hostapd_cli`, Linux `debugfs`, and the `iperf3 --json` interface. No vendor-private APIs anywhere
 
 ---
@@ -156,7 +157,7 @@ A controller publishes to an MQTT broker; agents on each client device subscribe
 
 **Phase 1 — done.** Linux agents (RPi + x86_64), MQTT orchestration, sub-ms sync, InfluxDB, auto reports with Jain's FI, Wi-Fi ATF case study up to 6 STA.
 
-**Phase 2 — done.** Integrated web UI: device selector, one-click run, native Chart.js live throughput, Jain's FI in-browser. Grafana demoted to optional. Per-device Wi-Fi band detection (2.4G / 5G / 6G).
+**Phase 2 — done.** Integrated web UI: device selector, one-click run, native Chart.js live throughput (metronome-driven — all lines advance in lockstep), Jain's FI in-browser. Per-device Wi-Fi band + IP display. Offline guard with 8s grace period. Grafana demoted to optional.
 
 **Phase 3 — planned.** macOS, Windows, and Android (via Termux) platform adapters. Goal: same scenario YAML runs unmodified across all four platforms.
 

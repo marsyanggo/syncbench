@@ -415,9 +415,9 @@ uv run atf-inspector   # http://localhost:8080
 ```
 
 The Inspector is the primary UI. It shows:
-- **Left panel** — online devices with Wi-Fi band (2.4G / 5G / 6G), NTP offset, and live per-second throughput during a run
-- **Centre panel** — run phase badge (PREPARING → RUNNING → DONE), progress bar, results table (avg / stdev / retransmits / sync offset), and Jain's Fairness Index
-- **Right panel** — Chart.js live throughput curves, one line per device, all aligned to the same clock
+- **Left panel** — online devices with Wi-Fi band (2.4G / 5G / 6G), IP address, NTP offset, and live per-second throughput during a run. If a selected device goes offline, an orange warning appears for 8 seconds before it is auto-deselected (recovers automatically if it comes back online within 8s)
+- **Centre panel** — run phase badge (PREPARING → RUNNING → DONE), progress bar (fixed to the full duration width), results table (avg / stdev / retransmits / sync offset), and Jain's Fairness Index
+- **Right panel** — Chart.js live throughput curves, one line per device; x-axis is pre-allocated to the full duration so lines fill left-to-right; all devices advance in lockstep via a metronome-driven renderer
 
 ### Grafana (optional — historical analysis)
 
