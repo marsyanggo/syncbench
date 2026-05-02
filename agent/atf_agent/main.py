@@ -216,7 +216,7 @@ class ATFAgent:
                     "throughput_mbps": sample.throughput_mbps,
                     "retransmits": sample.retransmits,
                 },
-                qos=0,
+                qos=1,
             )
 
         # Run iperf3 — direction determines client vs server role

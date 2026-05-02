@@ -149,13 +149,14 @@
           <tr>
             <th>Agent</th>
             <th>Avg Mbps</th>
+            <th>Direction</th>
             <th>±</th>
             <th>Retrans</th>
             <th>Sync</th>
           </tr>
         </thead>
         <tbody id="result-tbody">
-          <tr><td colspan="5" class="td-dim" style="padding:20px 10px">No run yet — select devices and press Start Run</td></tr>
+          <tr><td colspan="6" class="td-dim" style="padding:20px 10px">No run yet — select devices and press Start Run</td></tr>
         </tbody>
       </table>
     </div>
@@ -420,13 +421,15 @@ document.getElementById('btn-run').addEventListener('click', async () => {
 
   // Show placeholder rows with direction indicator
   const tbody = document.getElementById('result-tbody');
-  tbody.innerHTML = agentIds.map(id => `
-    <tr id="row-${id}">
-      <td class="td-agent">
-        <span style="color:#475569;margin-right:4px">${DIR_ICON[runDirections[id]] || '↑'}</span>${id}
-      </td>
-      <td class="td-dim" colspan="4">waiting…</td>
-    </tr>`).join('');
+  tbody.innerHTML = agentIds.map(id => {
+    const dir = runDirections[id] || 'uplink';
+    return `<tr id="row-${id}">
+      <td class="td-agent">${id}</td>
+      <td class="td-dim">—</td>
+      <td class="td-dim">${DIR_ICON[dir]} ${DIR_LABEL[dir]}</td>
+      <td class="td-dim" colspan="3">waiting…</td>
+    </tr>`;
+  }).join('');
   document.getElementById('jfi-row').style.display = 'none';
 
   const res = await fetch('/api/run', {
@@ -511,11 +514,12 @@ function subscribeRunStream(rid, agentIds) {
       const row = document.getElementById(`row-${agent_id}`);
       if (row) {
         const avg = rollingData[agent_id].sum / rollingData[agent_id].count;
-        const dIcon = DIR_ICON[runDirections[agent_id]] || '↑';
+        const dir = runDirections[agent_id] || 'uplink';
         row.innerHTML = `
-          <td class="td-agent"><span style="color:#475569;margin-right:4px">${dIcon}</span>${agent_id}</td>
+          <td class="td-agent">${agent_id}</td>
           <td class="td-num">${avg.toFixed(1)}</td>
-          <td class="td-dim">live avg</td>
+          <td class="td-dim">${DIR_ICON[dir]} ${DIR_LABEL[dir]}</td>
+          <td class="td-dim">live</td>
           <td class="td-dim">—</td>
           <td class="td-good">0 ms</td>`;
       }
@@ -560,20 +564,22 @@ function renderFinalResults(data) {
   const agentResults = data.agents || {};
   const tbody = document.getElementById('result-tbody');
   tbody.innerHTML = Object.entries(agentResults).map(([id, r]) => {
-    const dIcon = DIR_ICON[runDirections[id]] || '↑';
-    const agentCell = `<td class="td-agent"><span style="color:#475569;margin-right:4px">${dIcon}</span>${id}</td>`;
+    const dir = runDirections[id] || 'uplink';
+    const dirCell = `<td class="td-dim">${DIR_ICON[dir]} ${DIR_LABEL[dir]}</td>`;
     if (r.status === 'complete') {
       const retWarn = (r.total_retransmits || 0) > 20;
       return `<tr id="row-${id}">
-        ${agentCell}
+        <td class="td-agent">${id}</td>
         <td class="td-num">${r.throughput_mean_mbps?.toFixed(1) ?? '—'}</td>
+        ${dirCell}
         <td class="td-dim">±${r.throughput_stdev_mbps?.toFixed(1) ?? '—'}</td>
         <td class="${retWarn ? 'td-warn' : 'td-good'}">${r.total_retransmits ?? '—'}</td>
         <td class="td-good">${r.sync_offset_ms ?? '—'} ms</td>
       </tr>`;
     } else {
       return `<tr id="row-${id}">
-        ${agentCell}
+        <td class="td-agent">${id}</td>
+        ${dirCell}
         <td colspan="4" class="td-warn">✗ ${r.error || r.status}</td>
       </tr>`;
     }
@@ -612,6 +618,10 @@ function setPhase(phase, msg) {
   badge.className = `phase-badge phase-${phase}`;
   if (phase === 'error' && msg) {
     document.getElementById('elapsed-display').textContent = msg;
+  }
+  if (phase === 'preparing') {
+    document.getElementById('progress-bar').style.width = '0%';
+    document.getElementById('elapsed-display').textContent = '—';
   }
   if (phase === 'idle' || phase === 'done') {
     document.getElementById('progress-bar').style.width = phase === 'done' ? '100%' : '0%';
