@@ -131,7 +131,7 @@ _Last updated: 2026-05-04_
 
 - [x] `scenarios/06_downlink_be.yaml`：純 downlink BE baseline（兩台 equal，JFI ≈ 1.0）
 - [x] `scenarios/07_qos_uplink_vi_vs_be.yaml`：uplink VI vs BE，展示 WMM EDCA 不對稱（BE 211 Mbps > VI 49 Mbps）
-- [ ] Inspector live chart：雙向模式同時顯示 uplink / downlink 兩條線（同一 device 兩條）
+- [x] Inspector live chart：雙向模式顯示 TX+RX 合計一條線（設計決定：fairness 比較夠用，不需分兩條）
 
 ### Step 5 — 文件 + Platform Adapter
 
