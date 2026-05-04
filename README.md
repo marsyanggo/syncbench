@@ -66,6 +66,16 @@ Use cases this is **not** trying to be:
 
 ## Demo
 
+> **v3 — Traffic Direction + QoS (Phase 3)**: per-device direction (↑/↓/↕) and DSCP Access Category (BE/VI/VO/BK) selectable in the Inspector. Live throughput chart shows the AP's QoS scheduling in action.
+
+### v3 · 2-STA: Downlink BE vs Downlink VI — AP QoS scheduling visible
+
+https://github.com/user-attachments/assets/831200da-9df1-4378-b064-42d60341e674
+
+> **VI (DSCP AF31) gets 4× more downlink airtime than BE** — AP downlink scheduler clearly prioritizes AC_VI. Concurrent results: VI ≈ 194 Mbps, BE ≈ 40 Mbps. See [methodology.md](docs/methodology.md) for full QoS measurements and the uplink/downlink asymmetry finding.
+
+---
+
 > **v2 — Integrated Web UI** (Inspector with live Chart.js): select devices, start run, and watch throughput curves — all in one page.
 
 ### v2 · 5-STA: 5 × Raspberry Pi — Jain's FI = 0.886 ✅ Good
@@ -159,10 +169,14 @@ A controller publishes to an MQTT broker; agents on each client device subscribe
 
 ### Phase 3 — Traffic Direction + QoS _(2026-05-01 →)_
 
+- **DSCP / QoS Access Category** — per-device AC selector in Inspector: BE / VI / VO / BK; maps to iperf3 `--tos` (EF `0xb8` / AF31 `0x68` / 0 / CS1 `0x20`); shown in results table alongside throughput
+- **WMM EDCA asymmetry discovery** — VI downlink ≈ 194 Mbps vs BE ≈ 40 Mbps (AP prioritizes AC_VI); VI uplink ≈ 49 Mbps vs BE ≈ 211 Mbps (TXOP limit throttles uplink VI). Fully documented in [methodology.md](docs/methodology.md)
+- **AC_VO queue overflow finding** — VO (`0xb8`) causes AP AC_VO queue overflow at bulk TCP rates (1 BE + 1 VO → total drops from 282 to 18 Mbps); VI recommended for high-throughput QoS tests
 - **Traffic direction per device** — each device independently selectable as ↑ uplink / ↓ downlink / ↕ bidirectional; shown as a dedicated column in the Run Status results table
 - **Downlink support** — device spawns `iperf3 --server --one-off`; Mac-side orchestrator spawns matching clients after start signal; 1.5 s grace period avoids connect-before-bind race
 - **Bidirectional support** — `iperf3 --bidir`; TX-C and RX-C lines parsed and merged into a single sample (`throughput = TX + RX`) per second
 - **QoS 1 live samples** — live MQTT samples upgraded from QoS 0 to QoS 1; eliminates occasional missing data points caused by packet loss on the Wi-Fi path
+- **`scripts/sync-agents.py`** — parallel SFTP-based code sync + service restart for all RPi agents; password auth via paramiko (no sshpass needed)
 
 ### Phase 2 — Integrated Web UI _(2026-04-30 → 2026-05-01)_
 
