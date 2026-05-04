@@ -91,6 +91,96 @@ stations:
 | `01_two_sta_equal.yaml` | 2 (RPi×2) | 60s | Homogeneous fairness baseline |
 | `02_three_sta_mixed.yaml` | 3 (RPi×2 + NB) | 60s | Heterogeneous platform test |
 
+## Traffic Direction
+
+Each station can run iperf3 in one of three directions:
+
+| Direction | Role | Notes |
+|---|---|---|
+| `uplink` | Device → Mac (device = client) | Default. One iperf3 server spawned on Mac per port. |
+| `downlink` | Mac → Device (device = server) | Orchestrator spawns iperf3 client on Mac after agents bind ports (+1.5 s grace). |
+| `bidirectional` | Both simultaneously (`--bidir`) | Reports TX + RX combined throughput. |
+
+## QoS / DSCP Testing
+
+### DSCP → 802.11 Access Category Mapping
+
+The framework supports four 802.11 Access Categories via DSCP marking (`iperf3 --tos`):
+
+| AC Label | DSCP Class | DSCP Value | `--tos` byte | 802.11 UP | 802.11 AC |
+|---|---|---|---|---|---|
+| `vo` | EF | 46 | `0xb8` | 6 | AC_VO |
+| `vi` | AF31 | 26 | `0x68` | 4–5 | AC_VI |
+| `be` | CS0 | 0 | `0x00` | 0 | AC_BE |
+| `bk` | CS1 | 8 | `0x20` | 1–2 | AC_BK |
+
+The DSCP value is set on the sender's IP socket via `setsockopt(IP_TOS)`. The AP and Linux mac80211 stack map it to the 802.11 QoS Control UP field, which determines which EDCA queue is used.
+
+**Mapping chain:** `iperf3 --tos` → IP TOS field → `cfg80211_classify8021d()` (kernel) → 802.11 UP → EDCA AC queue.
+
+### Observed QoS Behavior (AX4200, VHT80, 2 STAs)
+
+Measured on 2026-05-04 with Mac mini (Ethernet) as controller and two RPi 500 STAs (VHT80, -38 dBm, 433 Mbps link rate).
+
+**Single-stream baseline:**
+
+| Direction | AC | Throughput |
+|---|---|---|
+| Downlink | BE | ~266 Mbps |
+| Downlink | VI | ~195 Mbps |
+| Downlink | VO | ~80 Mbps |
+
+**Concurrent 2-STA results:**
+
+| rpi-sta-01 | rpi-sta-02 | sta-01 result | sta-02 result | Total |
+|---|---|---|---|---|
+| Uplink BE | Uplink VI | 211 Mbps | 49 Mbps | 260 Mbps |
+| Downlink BE | Downlink VI | 40 Mbps | 194 Mbps | 234 Mbps |
+| Downlink BE | Downlink BE | 142 Mbps | 140 Mbps | 282 Mbps |
+| Downlink BE | Downlink VO | 13 Mbps | 4.7 Mbps | 18 Mbps ← collapse |
+
+### Key Finding 1: AC_VO Queue Overflow for Bulk TCP
+
+**VO (DSCP EF) should not be used for high-throughput TCP testing.**
+
+The AP's AC_VO queue is designed for voice calls (~64 Kbps–1 Mbps, small packets). Pushing bulk TCP (1500-byte MTU) through AC_VO causes:
+- Queue overflow → packet drops → TCP retransmits → congestion collapse
+- 2× VO concurrent: 45 + 2.7 Mbps with 115 + 30 TCP retransmits (vs 0 retransmits for 2× BE)
+- 1 BE + 1 VO: VO queue overflow steals airtime from BE → both streams collapse to ~13 + 4.7 Mbps
+
+**Recommendation:** Use VI (`0x68`) for high-throughput QoS comparison. VI queue is sized for video (higher bitrate) and correctly demonstrates AP downlink prioritization (194 Mbps VI vs 40 Mbps BE).
+
+### Key Finding 2: WMM EDCA Asymmetry — VI Behaves Opposite on Uplink vs Downlink
+
+When running 1× uplink BE + 1× uplink VI concurrently:
+- BE: **211 Mbps**, VI: **49 Mbps** — VI is *slower* than BE on uplink
+
+When running 1× downlink BE + 1× downlink VI concurrently:
+- BE: **40 Mbps**, VI: **194 Mbps** — VI is *faster* than BE on downlink
+
+**Root cause:** WMM defines two independent EDCA parameter sets:
+
+1. **STA EDCA** (advertised in AP beacon, governs uplink):
+   - AC_VI: AIFSN=2, CWmin=3, CWmax=7, **TXOP limit = 3.008 ms**
+   - AC_BE: AIFSN=3, CWmin=4, CWmax=10, **TXOP limit = 0 (unlimited)**
+   - On uplink, VI wins contention more often but gets a short TXOP each time → limited bytes per transmission → low throughput for bulk data
+
+2. **AP EDCA** (internal to AP, governs downlink):
+   - The AP uses its own EDCA parameters for its own transmissions
+   - AC_VI downlink TXOP is typically larger, allowing the AP to send more VI frames per slot
+   - Downlink VI frames are also placed in the higher-priority AC_VI queue at the AP
+
+**Practical implication:** QoS differentiation effectiveness depends strongly on direction:
+- Downlink: VI clearly shows higher priority than BE (expected behavior for multimedia streaming)
+- Uplink: VI appears slower than BE for bulk TCP due to TXOP limit mismatch
+
+### Key Finding 3: DSCP Marking is Confirmed Working
+
+The DSCP → TID mapping is verified as active on the AP:
+- `wmm_enabled=1` in hostapd config
+- Distinct throughput differences between AC classes in both directions confirm the AP is reading DSCP and routing to separate queues
+- Single-stream VO at 80 Mbps (vs BE at 266 Mbps) shows the AP applies VO queue constraints even for single streams
+
 ## Known Limitations
 
 ### AX4200 (MT7986A / mt76) — ATF not effective in HE80 mode

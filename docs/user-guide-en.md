@@ -336,10 +336,15 @@ open http://localhost:8080
    - **↑ uplink** (default) — device → Mac
    - **↓ downlink** — Mac → device
    - **↕ bidir** — both simultaneously; reports TX+RX combined throughput
-3. Set the duration (default: 60s)
-4. Press **▶ Start Run**
-5. Watch live throughput curves update every second; the Direction column shows ↑/↓/↕ per device
-6. Results table and Jain's Fairness Index appear when the run completes
+3. For each selected device, choose the QoS Access Category:
+   - **BE** (default) — Best Effort, DSCP 0, no priority marking
+   - **VI** — Video, DSCP AF31 (`0x68`), recommended for QoS throughput comparisons
+   - **VO** — Voice, DSCP EF (`0xb8`), ⚠ causes AC_VO queue overflow at bulk TCP rates — use only for diagnostic purposes or UDP/low-bitrate tests
+   - **BK** — Background, DSCP CS1 (`0x20`), lowest priority
+4. Set the duration (default: 60s)
+5. Press **▶ Start Run**
+6. Watch live throughput curves update every second; the Direction and QoS columns show per-device settings
+7. Results table and Jain's Fairness Index appear when the run completes
 
 ### Option B — CLI
 
@@ -408,7 +413,7 @@ stations:
 
 Ports are auto-assigned by the orchestrator — do not specify them in the YAML.
 
-To test mixed traffic directions, add `direction` to each station's traffic config:
+To test mixed traffic directions and QoS classes, add `direction` and `ac` to each station's traffic config:
 
 ```yaml
 stations:
@@ -417,17 +422,26 @@ stations:
       type: iperf3_tcp
       server: "atf-broker.local"
       direction: uplink        # device → Mac (default)
+      ac: be                   # Best Effort (default)
   - node: rpi-sta-02
     traffic:
       type: iperf3_tcp
       server: "atf-broker.local"
       direction: downlink      # Mac → device
+      ac: vi                   # Video (DSCP AF31, --tos 0x68)
   - node: rpi-sta-03
     traffic:
       type: iperf3_tcp
       server: "atf-broker.local"
       direction: bidirectional # both simultaneously (reports TX+RX combined)
+      ac: bk                   # Background (lowest priority)
 ```
+
+**AC values:** `be` (default) · `vi` (recommended for QoS tests) · `vo` (⚠ AC_VO queue overflow at bulk TCP rates) · `bk`
+
+**DSCP mapping:** `vo→0xb8` · `vi→0x68` · `be→0x00` · `bk→0x20`
+
+> **Note on QoS direction asymmetry:** VI (and VO) behave differently on uplink vs downlink due to WMM EDCA's separate parameter sets for STA-transmitted and AP-transmitted traffic. On downlink, VI shows clearly higher throughput than BE (AP prioritizes VI). On uplink, VI may show *lower* throughput than BE because the STA-side AC_VI TXOP limit (3 ms) restricts how much data can be sent per contention win — a known 802.11e design trade-off between latency and throughput. See `docs/methodology.md` for full measurements.
 
 ---
 

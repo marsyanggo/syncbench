@@ -336,10 +336,15 @@ open http://localhost:8080
    - **↑ uplink**（預設）— 裝置 → Mac
    - **↓ downlink** — Mac → 裝置
    - **↕ bidir** — 雙向同時；回報 TX+RX 合計吞吐量
-3. 設定 duration（預設 60 秒）
-4. 按 **▶ Start Run**
-5. 右欄即時曲線每秒更新；結果表格 Direction 欄顯示 ↑/↓/↕
-6. 測試結束後顯示結果表格和 Jain's Fairness Index
+3. 為每台選取的裝置選擇 QoS Access Category：
+   - **BE**（預設）— Best Effort，DSCP 0，無優先標記
+   - **VI** — Video，DSCP AF31（`0x68`），推薦用於 QoS 吞吐量對比測試
+   - **VO** — Voice，DSCP EF（`0xb8`），⚠ bulk TCP 會導致 AC_VO queue overflow，僅適合診斷用途或 UDP/低速率測試
+   - **BK** — Background，DSCP CS1（`0x20`），最低優先
+4. 設定 duration（預設 60 秒）
+5. 按 **▶ Start Run**
+6. 右欄即時曲線每秒更新；結果表格顯示 Direction 和 QoS 欄位
+7. 測試結束後顯示結果表格和 Jain's Fairness Index
 
 ### 方法 B — CLI
 
@@ -408,7 +413,7 @@ stations:
 
 Port 由 orchestrator 自動分配，**不要在 YAML 裡指定**。
 
-要測試混合流量方向，在每台 station 的 traffic config 加 `direction`：
+要測試混合流量方向與 QoS class，在每台 station 的 traffic config 加 `direction` 和 `ac`：
 
 ```yaml
 stations:
@@ -417,17 +422,26 @@ stations:
       type: iperf3_tcp
       server: "atf-broker.local"
       direction: uplink        # 裝置 → Mac（預設）
+      ac: be                   # Best Effort（預設）
   - node: rpi-sta-02
     traffic:
       type: iperf3_tcp
       server: "atf-broker.local"
       direction: downlink      # Mac → 裝置
+      ac: vi                   # Video（DSCP AF31，--tos 0x68）
   - node: rpi-sta-03
     traffic:
       type: iperf3_tcp
       server: "atf-broker.local"
       direction: bidirectional # 雙向同時（回報 TX+RX 合計）
+      ac: bk                   # Background（最低優先）
 ```
+
+**AC 值：** `be`（預設）· `vi`（推薦 QoS 測試）· `vo`（⚠ bulk TCP 會 overflow）· `bk`
+
+**DSCP 對應：** `vo→0xb8` · `vi→0x68` · `be→0x00` · `bk→0x20`
+
+> **QoS 方向不對稱注意事項：** VI（及 VO）在上下行的行為截然不同，這是 WMM EDCA 設計的已知特性。**Downlink：** VI 吞吐量明顯高於 BE（AP 下行優先排程 VI）。**Uplink：** VI 吞吐量可能低於 BE，因為 STA 端的 AC_VI TXOP 限制（3 ms）限制每次競爭贏得 channel 後可發送的資料量——這是 802.11e 在延遲與吞吐量之間的設計取捨。完整測量數據請參閱 `docs/methodology.md`。
 
 ---
 

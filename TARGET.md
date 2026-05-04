@@ -110,21 +110,22 @@ _Last updated: 2026-05-01_
 
 ### Step 2 — QoS / DSCP 標記
 
-- [ ] `TrafficConfig` 加 `ac: vo | vi | be | bk`（自動映射 DSCP → iperf3 `--tos`）
+- [x] `TrafficConfig` 加 `ac: vo | vi | be | bk`（自動映射 DSCP → iperf3 `--tos`）
   - VO → DSCP EF (46) → `--tos 0xb8`
   - VI → DSCP AF31 (26) → `--tos 0x68`
   - BE → DSCP 0 → `--tos 0x00`
   - BK → DSCP CS1 (8) → `--tos 0x20`
-- [ ] Agent：iperf3 command 加入 `--tos` 參數
-- [ ] AP 側確認 WMM 啟用（`iw dev phy1-ap0 info | grep WMM`）
-- [ ] Inspector UI：device 選取加 AC 選擇（VO / VI / BE / BK）
+- [x] Agent：iperf3 command 加入 `--tos` 參數（uplink client path）
+- [x] Orchestrator：downlink client 加 `--tos`（Mac 端 spawn client 帶 ac 參數）
+- [x] AP 側確認 WMM 啟用（hostapd `wmm_enabled=1` + DSCP→TID mapping 行為驗證）
+- [x] Inspector UI：device 選取加 AC 選擇（VO / VI / BE / BK），結果表顯示 AC class + TOS 值
 
 ### Step 3 — QoS 差異視覺化
 
-- [ ] Chart：不同 AC class 用圖例標示（顏色或 label）
-- [ ] 結果表：每台 agent 顯示 direction 和 AC class 欄位
-- [ ] `scenarios/05_qos_four_ac.yaml`：4 台各跑一個 AC 同時測試，觀察 AP 排程差異
-- [ ] JFI 按 AC 分組顯示（VO vs BE 的公平性差距可量化）
+- [x] 結果表：每台 agent 顯示 direction 和 AC class 欄位（含 TOS hex 值）
+- [ ] Chart：不同 AC class 用圖例標示（顏色或 label，目前靠結果表區分）
+- [ ] `scenarios/05_qos_vi_vs_be.yaml`：VI 跟 BE 同時下行，驗證 AP 下行優先排程（實測 194 vs 40 Mbps）
+- [ ] JFI 按 AC 分組顯示（VI vs BE 的公平性差距可量化）
 
 ### Step 4 — Bidirectional + QoS 混合 Scenario
 
@@ -134,7 +135,8 @@ _Last updated: 2026-05-01_
 
 ### Step 5 — 文件 + Platform Adapter
 
-- [ ] `docs/methodology.md` 補充 DSCP mapping 表、WMM 驗證方法
+- [x] `docs/methodology.md` 補充 DSCP mapping 表、WMM 驗證方法、三大 QoS 發現（2026-05-04）
+- [x] `docs/user-guide-en.md` / `user-guide-zh.md` 補充 AC 選擇說明與方向不對稱警告
 - [ ] `LinuxAdapter.get_link_info()`：補充回報 DSCP / TOS 實際值（驗證 marking 有效）
 - [ ] `MacOSAdapter.get_link_info()`：補 `freq_mhz`（替換 deprecated `airport` 指令）
 
