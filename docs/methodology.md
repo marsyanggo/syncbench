@@ -90,6 +90,11 @@ stations:
 | `00_smoke_test.yaml` | 1 | 30s | Pipeline validation |
 | `01_two_sta_equal.yaml` | 2 (RPi×2) | 60s | Homogeneous fairness baseline |
 | `02_three_sta_mixed.yaml` | 3 (RPi×2 + NB) | 60s | Heterogeneous platform test |
+| `03_five_sta_rpi.yaml` | 5 (RPi×5) | 60s | 5-STA scale test (JFI = 0.886) |
+| `04_six_sta_mixed.yaml` | 6 (RPi×5 + NB) | 60s | 6-STA heterogeneous (JFI = 0.521) |
+| `05_qos_vi_vs_be.yaml` | 2 | 60s | Downlink QoS: VI vs BE (AP prioritizes VI) |
+| `06_downlink_be.yaml` | 2 | 60s | Downlink BE baseline (both equal, JFI ≈ 1.0) |
+| `07_qos_uplink_vi_vs_be.yaml` | 2 | 60s | Uplink QoS: VI vs BE (WMM EDCA asymmetry) |
 
 ## Traffic Direction
 

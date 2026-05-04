@@ -124,13 +124,13 @@ _Last updated: 2026-05-04_
 
 - [x] 結果表：每台 agent 顯示 direction 和 AC class 欄位（含 TOS hex 值）
 - [ ] Chart：不同 AC class 用圖例標示（顏色或 label，目前靠結果表區分）
-- [ ] `scenarios/05_qos_vi_vs_be.yaml`：VI 跟 BE 同時下行，驗證 AP 下行優先排程（實測 194 vs 40 Mbps）
+- [x] `scenarios/05_qos_vi_vs_be.yaml`：VI 跟 BE 同時下行，驗證 AP 下行優先排程（實測 194 vs 40 Mbps）
 - [ ] JFI 按 AC 分組顯示（VI vs BE 的公平性差距可量化）
 
-### Step 4 — Bidirectional + QoS 混合 Scenario
+### Step 4 — QoS Scenario 補全 + Bidirectional
 
-- [ ] `scenarios/06_downlink_be.yaml`：純 downlink baseline
-- [ ] `scenarios/07_bidir_vo_vs_bk.yaml`：VO 跟 BK 同時互打，驗證 AP 是否給 VO 優先
+- [x] `scenarios/06_downlink_be.yaml`：純 downlink BE baseline（兩台 equal，JFI ≈ 1.0）
+- [x] `scenarios/07_qos_uplink_vi_vs_be.yaml`：uplink VI vs BE，展示 WMM EDCA 不對稱（BE 211 Mbps > VI 49 Mbps）
 - [ ] Inspector live chart：雙向模式同時顯示 uplink / downlink 兩條線（同一 device 兩條）
 
 ### Step 5 — 文件 + Platform Adapter

@@ -1,0 +1,30 @@
+extends: _base/normal.yaml
+
+name: "Downlink BE Baseline"
+description: |
+  Pure downlink baseline: 2 STAs both running AC_BE (no QoS marking).
+  Use this as the reference before adding QoS differentiation.
+
+  Expected result (AX4200, VHT80, 2 × RPi 500):
+    rpi-sta-01 (BE): ~140 Mbps
+    rpi-sta-02 (BE): ~140 Mbps
+    JFI ≈ 1.00 (equal airtime, same AC class)
+duration_sec: 60
+
+preflight:
+  expected_agents: ["rpi-sta-01", "rpi-sta-02"]
+
+stations:
+  - node: rpi-sta-01
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+      direction: downlink
+      ac: be
+
+  - node: rpi-sta-02
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+      direction: downlink
+      ac: be

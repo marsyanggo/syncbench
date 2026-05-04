@@ -1,0 +1,36 @@
+extends: _base/normal.yaml
+
+name: "QoS Uplink: VI vs BE"
+description: |
+  Demonstrates WMM EDCA uplink asymmetry: VI (AC_VI, TXOP=3ms limit)
+  vs BE (AC_BE, unlimited TXOP) on uplink.
+
+  Expected result (AX4200, VHT80, 2 × RPi 500):
+    rpi-sta-01 (BE): ~211 Mbps  ← higher than VI on uplink
+    rpi-sta-02 (VI):  ~49 Mbps  ← limited by AC_VI TXOP=3.008ms
+
+  Contrast with scenario 05 (downlink) where VI > BE.
+  This asymmetry is a fundamental WMM EDCA design property:
+  STA-side AC_VI TXOP limit throttles bulk uplink throughput,
+  while AP-side AC_VI scheduling boosts downlink throughput.
+
+  See docs/methodology.md §WMM EDCA Asymmetry for full analysis.
+duration_sec: 60
+
+preflight:
+  expected_agents: ["rpi-sta-01", "rpi-sta-02"]
+
+stations:
+  - node: rpi-sta-01
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+      direction: uplink
+      ac: be
+
+  - node: rpi-sta-02
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+      direction: uplink
+      ac: vi
