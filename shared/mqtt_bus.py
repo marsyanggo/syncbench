@@ -109,7 +109,9 @@ class MQTTBus:
             logger.error("Connection failed: %s", reason_code)
             return
         logger.info("Connected (rc=%s)", reason_code)
-        for topic in self._subscriptions:
+        # Snapshot keys to avoid 'dictionary changed size during iteration' if
+        # another thread adds a subscription while CONNACK fires.
+        for topic in list(self._subscriptions):
             client.subscribe(topic)
 
     def _on_message(self, client, userdata, message):

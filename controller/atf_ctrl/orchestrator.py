@@ -120,6 +120,7 @@ class Orchestrator:
                 "parallel": s.traffic.parallel,
                 "bandwidth_mbps": s.traffic.bandwidth_mbps,
                 "direction": s.traffic.direction,
+                "ac": s.traffic.ac,
             }
             for i, s in enumerate(scenario.stations)
         }
@@ -312,14 +313,16 @@ class Orchestrator:
             if not ip:
                 logger.warning("No IP known for %s — skipping downlink client", node)
                 continue
-            proc = subprocess.Popen(
-                [binary, "--client", ip, "--port", str(cfg["port"]),
-                 "--time", str(duration_sec), "--interval", "1", "--forceflush"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+            _AC_TOS = {"vo": "0xb8", "vi": "0x68", "be": "0x00", "bk": "0x20"}
+            tos = _AC_TOS.get(cfg.get("ac", "be"), "0x00")
+            cmd = [binary, "--client", ip, "--port", str(cfg["port"]),
+                   "--time", str(duration_sec), "--interval", "1", "--forceflush"]
+            if tos != "0x00":
+                cmd += ["--tos", tos]
+            proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self._iperf3_procs.append(proc)
-            logger.info("iperf3 downlink client → %s:%d (pid %d)", ip, cfg["port"], proc.pid)
+            logger.info("iperf3 downlink client → %s:%d ac=%s (pid %d)",
+                        ip, cfg["port"], cfg.get("ac", "be"), proc.pid)
 
     def _stop_iperf3_servers(self) -> None:
         for proc in self._iperf3_procs:

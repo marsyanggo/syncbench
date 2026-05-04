@@ -12,6 +12,9 @@ class TrafficConfig(BaseModel):
     # uplink:        device → Mac (device=client, Mac=server)  [default, existing behaviour]
     # downlink:      Mac → device (Mac=client, device=server)
     # bidirectional: both simultaneously via iperf3 --bidir
+    ac: Literal["vo", "vi", "be", "bk"] = "be"
+    # Wi-Fi Access Category → iperf3 --tos:
+    # vo→0xb8, vi→0x68, be→0x00, bk→0x20
 
 
 class StationConfig(BaseModel):

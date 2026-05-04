@@ -222,9 +222,9 @@ class ATFAgent:
         # Run iperf3 — direction determines client vs server role
         cfg = self._traffic_config or {}
         direction = cfg.get("direction", "uplink")
+        ac = cfg.get("ac", "be")
 
         if direction == "downlink":
-            # Device acts as iperf3 server; orchestrator spawns client on Mac
             from agent.atf_agent.traffic.iperf3 import run_server as run_iperf3_server
             result = run_iperf3_server(
                 port=cfg.get("port", 5201),
@@ -232,7 +232,6 @@ class ATFAgent:
                 on_sample=_on_sample,
             )
         else:
-            # uplink or bidirectional — device acts as iperf3 client
             result = run_iperf3(
                 server=cfg.get("server", "localhost"),
                 port=cfg.get("port", 5201),
@@ -241,6 +240,7 @@ class ATFAgent:
                 bandwidth_mbps=cfg.get("bandwidth_mbps"),
                 parallel=cfg.get("parallel", 1),
                 direction=direction,
+                ac=ac,
                 on_sample=_on_sample,
             )
 

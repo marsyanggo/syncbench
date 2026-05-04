@@ -74,6 +74,9 @@ class Iperf3Result:
         return self.error is None and len(self.samples) > 0
 
 
+_AC_TOS = {"vo": "0xb8", "vi": "0x68", "be": "0x00", "bk": "0x20"}
+
+
 def run(
     server: str,
     port: int = 5201,
@@ -82,6 +85,7 @@ def run(
     bandwidth_mbps: int | None = None,
     parallel: int = 1,
     direction: str = "uplink",
+    ac: str = "be",
     on_sample: Callable[[ThroughputSample], None] | None = None,
 ) -> Iperf3Result:
     """Run iperf3 client (uplink/bidirectional), streaming per-second samples.
@@ -105,6 +109,9 @@ def run(
     ]
     if direction == "bidirectional":
         cmd.append("--bidir")
+    tos = _AC_TOS.get(ac, "0x00")
+    if tos != "0x00":
+        cmd += ["--tos", tos]
     if protocol == "udp":
         cmd.append("--udp")
         if bandwidth_mbps:

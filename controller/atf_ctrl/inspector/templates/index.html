@@ -41,6 +41,10 @@
   .dir-btn { background: #1e2235; border: 1px solid #2d3148; color: #475569; border-radius: 3px; padding: 2px 5px; font-size: 11px; cursor: pointer; transition: all 0.15s; user-select: none; }
   .dir-btn:hover { border-color: #3b4fd8; color: #7c8cf8; }
   .dir-btn.active { background: #1e2a4a; border-color: #3b4fd8; color: #7c8cf8; }
+  .ac-toggle { display: flex; gap: 2px; flex-shrink: 0; margin-top: 3px; }
+  .ac-btn { background: #1e2235; border: 1px solid #2d3148; color: #475569; border-radius: 3px; padding: 2px 5px; font-size: 10px; cursor: pointer; transition: all 0.15s; user-select: none; }
+  .ac-btn:hover { border-color: #f59e0b; color: #fbbf24; }
+  .ac-btn.active { background: #3b2800; border-color: #f59e0b; color: #fbbf24; }
 
   /* Run controls */
   .run-controls { padding: 12px; border-top: 1px solid #2d3148; flex-shrink: 0; }
@@ -150,13 +154,14 @@
             <th>Agent</th>
             <th>Avg Mbps</th>
             <th>Direction</th>
+            <th>QoS (TOS)</th>
             <th>±</th>
             <th>Retrans</th>
             <th>Sync</th>
           </tr>
         </thead>
         <tbody id="result-tbody">
-          <tr><td colspan="6" class="td-dim" style="padding:20px 10px">No run yet — select devices and press Start Run</td></tr>
+          <tr><td colspan="7" class="td-dim" style="padding:20px 10px">No run yet — select devices and press Start Run</td></tr>
         </tbody>
       </table>
     </div>
@@ -204,15 +209,24 @@ function agentColor(id) {
 let agents = [];          // [{agent_id, online, platform, ntp_display}, ...]
 let selected = new Set();
 const agentDirection = {}; // agent_id → 'uplink' | 'downlink' | 'bidirectional'
+const agentAC = {};        // agent_id → 'vo' | 'vi' | 'be' | 'bk'
 let runDirections = {};    // directions for the current run (from started event)
+let runACs = {};
+
+const AC_TOS    = { vo: '0xb8', vi: '0x68', be: '0x00', bk: '0x20' };
+const AC_COLORS = { vo: '#f87171', vi: '#f59e0b', be: '#4ade80', bk: '#94a3b8' };
 
 const DIR_ICON = { uplink: '↑', downlink: '↓', bidirectional: '↕' };
 const DIR_LABEL = { uplink: 'uplink', downlink: 'downlink', bidirectional: 'bidir' };
 
 function getDirection(id) { return agentDirection[id] || 'uplink'; }
-function setDirection(id, dir) {
-  agentDirection[id] = dir;
-  renderAgentList();
+function setDirection(id, dir) { agentDirection[id] = dir; renderAgentList(); }
+function getAC(id) { return agentAC[id] || 'be'; }
+function setAC(id, ac) { agentAC[id] = ac; renderAgentList(); }
+function acCell(id) {
+  const ac = (runACs[id] || 'be');
+  const color = AC_COLORS[ac];
+  return `<td style="color:${color};font-size:12px">${ac.toUpperCase()} <span style="color:#475569">(${AC_TOS[ac]})</span></td>`;
 }
 let runId = null;
 // offline grace period: agent_id → setTimeout handle
@@ -364,13 +378,21 @@ function renderAgentList() {
         </div>
         ${a.ip ? `<div class="agent-ip">${a.ip}</div>` : ''}
         ${isSel && !isRunning ? `
-        <div class="dir-toggle" onclick="event.stopPropagation()">
-          ${['uplink','downlink','bidirectional'].map(d => `
-            <button class="dir-btn ${getDirection(a.agent_id) === d ? 'active' : ''}"
-              title="${d}"
-              onclick="setDirection('${a.agent_id}','${d}')">
-              ${ d === 'uplink' ? '↑' : d === 'downlink' ? '↓' : '↕' }
-            </button>`).join('')}
+        <div style="display:flex;flex-direction:column;gap:2px;align-items:flex-end">
+          <div class="dir-toggle" onclick="event.stopPropagation()">
+            ${['uplink','downlink','bidirectional'].map(d => `
+              <button class="dir-btn ${getDirection(a.agent_id) === d ? 'active' : ''}"
+                title="${d}" onclick="setDirection('${a.agent_id}','${d}')">
+                ${ d === 'uplink' ? '↑' : d === 'downlink' ? '↓' : '↕' }
+              </button>`).join('')}
+          </div>
+          <div class="ac-toggle" onclick="event.stopPropagation()">
+            ${['vo','vi','be','bk'].map(ac => `
+              <button class="ac-btn ${getAC(a.agent_id) === ac ? 'active' : ''}"
+                title="${ac.toUpperCase()}" onclick="setAC('${a.agent_id}','${ac}')">
+                ${ac.toUpperCase()}
+              </button>`).join('')}
+          </div>
         </div>` : ''}
       </div>
       <div class="agent-mbps"
@@ -418,6 +440,7 @@ document.getElementById('btn-run').addEventListener('click', async () => {
 
   // Capture current directions for this run
   runDirections = Object.fromEntries(agentIds.map(id => [id, getDirection(id)]));
+  runACs = Object.fromEntries(agentIds.map(id => [id, getAC(id)]));
 
   // Show placeholder rows with direction indicator
   const tbody = document.getElementById('result-tbody');
@@ -427,6 +450,7 @@ document.getElementById('btn-run').addEventListener('click', async () => {
       <td class="td-agent">${id}</td>
       <td class="td-dim">—</td>
       <td class="td-dim">${DIR_ICON[dir]} ${DIR_LABEL[dir]}</td>
+      ${acCell(id)}
       <td class="td-dim" colspan="3">waiting…</td>
     </tr>`;
   }).join('');
@@ -439,6 +463,7 @@ document.getElementById('btn-run').addEventListener('click', async () => {
       agents: agentIds,
       duration: durationSec,
       directions: Object.fromEntries(agentIds.map(id => [id, getDirection(id)])),
+      acs: Object.fromEntries(agentIds.map(id => [id, getAC(id)])),
     }),
   });
   if (!res.ok) {
@@ -519,6 +544,7 @@ function subscribeRunStream(rid, agentIds) {
           <td class="td-agent">${agent_id}</td>
           <td class="td-num">${avg.toFixed(1)}</td>
           <td class="td-dim">${DIR_ICON[dir]} ${DIR_LABEL[dir]}</td>
+          ${acCell(agent_id)}
           <td class="td-dim">live</td>
           <td class="td-dim">—</td>
           <td class="td-good">0 ms</td>`;
@@ -572,6 +598,7 @@ function renderFinalResults(data) {
         <td class="td-agent">${id}</td>
         <td class="td-num">${r.throughput_mean_mbps?.toFixed(1) ?? '—'}</td>
         ${dirCell}
+        ${acCell(id)}
         <td class="td-dim">±${r.throughput_stdev_mbps?.toFixed(1) ?? '—'}</td>
         <td class="${retWarn ? 'td-warn' : 'td-good'}">${r.total_retransmits ?? '—'}</td>
         <td class="td-good">${r.sync_offset_ms ?? '—'} ms</td>
@@ -580,6 +607,7 @@ function renderFinalResults(data) {
       return `<tr id="row-${id}">
         <td class="td-agent">${id}</td>
         ${dirCell}
+        ${acCell(id)}
         <td colspan="4" class="td-warn">✗ ${r.error || r.status}</td>
       </tr>`;
     }

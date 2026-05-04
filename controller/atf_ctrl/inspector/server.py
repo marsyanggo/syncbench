@@ -130,6 +130,7 @@ class RunRequest(BaseModel):
     duration: int = 60
     server: str = "atf-broker.local"
     directions: dict[str, str] = {}  # agent_id → 'uplink'|'downlink'|'bidirectional'
+    acs: dict[str, str] = {}         # agent_id → 'vo'|'vi'|'be'|'bk'
 
 
 @_app.post("/api/run")
@@ -155,6 +156,7 @@ async def api_start_run(req: RunRequest):
                 type="iperf3_tcp",
                 server=req.server,
                 direction=req.directions.get(a, "uplink"),
+                ac=req.acs.get(a, "be"),
             ))
             for a in req.agents
         ],
