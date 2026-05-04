@@ -349,9 +349,15 @@ open http://localhost:8080
 ### Option B — CLI
 
 ```bash
-uv run atf-run scenarios/01_two_sta_equal.yaml      # 2 STAs, 60s
-uv run atf-run scenarios/04_six_sta_mixed.yaml      # 5 RPi + 1 NB, 60s
-uv run atf-run scenarios/00_smoke_test.yaml         # 1 STA, 30s (smoke test)
+# Fairness baseline
+uv run atf-run scenarios/01_two_sta_equal.yaml         # 2 STAs uplink, 60s
+uv run atf-run scenarios/04_six_sta_mixed.yaml         # 5 RPi + 1 NB, 60s
+uv run atf-run scenarios/00_smoke_test.yaml            # 1 STA, 30s (smoke test)
+
+# QoS / Direction
+uv run atf-run scenarios/05_qos_vi_vs_be.yaml          # downlink VI vs BE (AP QoS demo)
+uv run atf-run scenarios/06_downlink_be.yaml           # downlink BE baseline
+uv run atf-run scenarios/07_qos_uplink_vi_vs_be.yaml   # uplink VI vs BE (EDCA asymmetry)
 ```
 
 `atf-run` automatically:

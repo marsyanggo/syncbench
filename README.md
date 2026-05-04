@@ -6,7 +6,7 @@ Coordinates real client devices — Raspberry Pi, Linux laptops, Android phones,
 
 If you've ever needed to ask *"are these N clients really being treated the same?"* — and wished the answer didn't require either a $50K test chamber or a research-grade tool with a 2012 UI — syncbench is built for that gap.
 
-> **Status:** Phase 2 complete. Integrated web UI — select devices, start run, and watch live throughput curves all from one page. Wi-Fi 6 (HE80 OFDMA) ATF case study included as the first reference scenario; the orchestrator itself is transport-agnostic.
+> **Status:** Phase 3 complete. Per-device traffic direction (↑/↓/↕) and DSCP QoS class (BE/VI/VO/BK) selectable in the Inspector. AP downlink QoS scheduling and WMM EDCA uplink/downlink asymmetry documented with measurements. 7 reference scenarios included.
 
 ---
 
@@ -213,7 +213,7 @@ A controller publishes to an MQTT broker; agents on each client device subscribe
 
 **Phase 2 — done.** Integrated web UI: device selector, one-click run, native Chart.js live throughput (metronome-driven — all lines advance in lockstep), Jain's FI in-browser. Per-device Wi-Fi band + IP display. Offline guard with 8s grace period. Grafana demoted to optional.
 
-**Phase 3 — in progress.** Traffic direction (uplink ✅ / downlink ✅ / bidirectional ✅) and QoS priority selection (VO/VI/BE/BK → DSCP marking). Goal: measure how a shared AP treats different traffic classes simultaneously.
+**Phase 3 — done.** Per-device traffic direction (↑ uplink / ↓ downlink / ↕ bidir) and DSCP QoS class (BE/VI/VO/BK) selectable in Inspector. Key finding: AP downlink prioritizes AC_VI (194 Mbps) over AC_BE (40 Mbps); uplink reverses due to WMM EDCA TXOP limit. AC_VO queue overflow documented for bulk TCP. 7 reference scenarios including QoS comparison scenarios.
 
 **Phase 4 — planned.** Scale to 10–50 endpoints. Broker tuning, scenario sharding, optional RF-isolation testbed integration.
 

@@ -349,9 +349,15 @@ open http://localhost:8080
 ### 方法 B — CLI
 
 ```bash
-uv run atf-run scenarios/01_two_sta_equal.yaml      # 2 STA，60 秒
-uv run atf-run scenarios/04_six_sta_mixed.yaml      # 5 RPi + 1 NB，60 秒
-uv run atf-run scenarios/00_smoke_test.yaml         # 1 STA，30 秒（smoke test）
+# 公平性 baseline
+uv run atf-run scenarios/01_two_sta_equal.yaml         # 2 STA uplink，60 秒
+uv run atf-run scenarios/04_six_sta_mixed.yaml         # 5 RPi + 1 NB，60 秒
+uv run atf-run scenarios/00_smoke_test.yaml            # 1 STA，30 秒（smoke test）
+
+# QoS / 方向
+uv run atf-run scenarios/05_qos_vi_vs_be.yaml          # downlink VI vs BE（AP QoS 排程 demo）
+uv run atf-run scenarios/06_downlink_be.yaml           # downlink BE baseline
+uv run atf-run scenarios/07_qos_uplink_vi_vs_be.yaml   # uplink VI vs BE（WMM EDCA 不對稱 demo）
 ```
 
 `atf-run` 會自動：
