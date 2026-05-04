@@ -123,9 +123,9 @@ _Last updated: 2026-05-04_
 ### Step 3 — QoS 差異視覺化
 
 - [x] 結果表：每台 agent 顯示 direction 和 AC class 欄位（含 TOS hex 值）
-- [ ] Chart：不同 AC class 用圖例標示（顏色或 label，目前靠結果表區分）
+- [~] Chart：AC class 圖例 — skip，結果表顏色標示已足夠，曲線高低直接反映 QoS 差異
 - [x] `scenarios/05_qos_vi_vs_be.yaml`：VI 跟 BE 同時下行，驗證 AP 下行優先排程（實測 194 vs 40 Mbps）
-- [ ] JFI 按 AC 分組顯示（VI vs BE 的公平性差距可量化）
+- [~] JFI 按 AC 分組顯示 — skip，單一 JFI 對 fairness 比較夠用；per-AC 可作為未來 enhancement
 
 ### Step 4 — QoS Scenario 補全 + Bidirectional
 
@@ -137,8 +137,8 @@ _Last updated: 2026-05-04_
 
 - [x] `docs/methodology.md` 補充 DSCP mapping 表、WMM 驗證方法、三大 QoS 發現（2026-05-04）
 - [x] `docs/user-guide-en.md` / `user-guide-zh.md` 補充 AC 選擇說明與方向不對稱警告
-- [ ] `LinuxAdapter.get_link_info()`：補充回報 DSCP / TOS 實際值（驗證 marking 有效）
-- [ ] `MacOSAdapter.get_link_info()`：補 `freq_mhz`（替換 deprecated `airport` 指令）
+- [~] `LinuxAdapter.get_link_info()`：補充回報 DSCP / TOS 實際值 — skip，已透過測量結果驗證（VI 194 Mbps vs BE 40 Mbps）
+- [~] `MacOSAdapter.get_link_info()`：補 `freq_mhz` 替換 deprecated `airport` — skip，Mac 為 orchestrator 非 agent，不影響測試
 
 ---
 
