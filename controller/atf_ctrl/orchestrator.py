@@ -217,6 +217,9 @@ class Orchestrator:
         # Teardown
         self._bus.publish("atf/ctrl/broadcast/teardown", {"run_id": run_id})
         logger.info("Run %s finished. ok=%s", run_id, result.ok)
+        for aid, r in result.agent_results.items():
+            if r.status != "complete":
+                logger.error("Agent %s: status=%s error=%s", aid, r.status, r.error)
 
         # Write to InfluxDB
         try:
@@ -342,7 +345,10 @@ class Orchestrator:
         def _on_ack(topic: str, payload: dict) -> None:
             agent_id = payload.get("agent_id")
             if agent_id and agent_id in self._acks:
-                logger.info("Ack received from %s", agent_id)
+                ip = payload.get("ip")
+                if ip:
+                    self._agent_ips[agent_id] = ip
+                logger.info("Ack received from %s (ip=%s)", agent_id, ip)
                 self._acks[agent_id].set()
 
         self._bus.subscribe(f"atf/agent/+/ack/+", _on_ack, qos=1)

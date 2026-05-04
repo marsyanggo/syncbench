@@ -9,6 +9,7 @@ Usage:
                  on_sample=lambda s: print(s.throughput_mbps))
 """
 
+import logging
 import math
 import re
 import shutil
@@ -16,6 +17,8 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 from typing import Callable
+
+logger = logging.getLogger(__name__)
 
 
 def _find_iperf3() -> str:
@@ -227,7 +230,9 @@ def run_server(
         return result
 
     samples: list[ThroughputSample] = []
+    raw_lines: list[str] = []
     for line in proc.stdout:
+        raw_lines.append(line.rstrip())
         m = _TCP_SERVER_RE.search(line.rstrip())
         if not m:
             continue
@@ -247,9 +252,17 @@ def run_server(
             on_sample(sample)
 
     proc.wait(timeout=duration + 30)
+    stderr_out = proc.stderr.read().strip()
 
     if not samples:
-        result.error = "no interval data from iperf3 server"
+        preview = "\n  ".join(raw_lines[:10]) if raw_lines else "(no output)"
+        logger.error(
+            "iperf3 server: 0 samples on port %d. rc=%d stderr=%r stdout_preview:\n  %s",
+            port, proc.returncode, stderr_out, preview,
+        )
+        result.error = f"no interval data from iperf3 server (rc={proc.returncode})"
+        if stderr_out:
+            result.error += f": {stderr_out[:120]}"
         return result
 
     result.samples = samples

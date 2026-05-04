@@ -22,6 +22,7 @@ dependencies = [
     "python-ulid>=3.0.0",
     "pyyaml>=6.0.2",
     "aiofiles>=24.1.0",
+    "paramiko>=4.0.0",
 ]
 
 [project.scripts]

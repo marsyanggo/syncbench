@@ -173,10 +173,17 @@ class ATFAgent:
         self._current_run_id = payload.get("run_id")
         self._traffic_config = station_traffic[self.agent_id]
 
-        # Acknowledge
+        # Acknowledge — include IP so orchestrator can populate _agent_ips
+        # without depending on heartbeat timing (eliminates race condition)
         self._bus.publish(
             f"atf/agent/{self.agent_id}/ack/{payload.get('msg_id', 'unknown')}",
-            {"run_id": self._current_run_id, "agent_id": self.agent_id, "ok": True},
+            {
+                "run_id": self._current_run_id,
+                "agent_id": self.agent_id,
+                "ok": True,
+                "ip": self._platform.get_wifi_ip(),
+            },
+            qos=1,
         )
         self._set_state("ARMED")
 
@@ -224,25 +231,44 @@ class ATFAgent:
         direction = cfg.get("direction", "uplink")
         ac = cfg.get("ac", "be")
 
-        if direction == "downlink":
-            from agent.atf_agent.traffic.iperf3 import run_server as run_iperf3_server
-            result = run_iperf3_server(
-                port=cfg.get("port", 5201),
-                duration=duration_sec,
-                on_sample=_on_sample,
+        logger.info("iperf3 run: direction=%s ac=%s port=%s", direction, ac, cfg.get("port", 5201))
+
+        try:
+            if direction == "downlink":
+                from agent.atf_agent.traffic.iperf3 import run_server as run_iperf3_server
+                result = run_iperf3_server(
+                    port=cfg.get("port", 5201),
+                    duration=duration_sec,
+                    on_sample=_on_sample,
+                )
+            else:
+                result = run_iperf3(
+                    server=cfg.get("server", "localhost"),
+                    port=cfg.get("port", 5201),
+                    duration=duration_sec,
+                    protocol="udp" if cfg.get("type", "").endswith("udp") else "tcp",
+                    bandwidth_mbps=cfg.get("bandwidth_mbps"),
+                    parallel=cfg.get("parallel", 1),
+                    direction=direction,
+                    ac=ac,
+                    on_sample=_on_sample,
+                )
+        except Exception as exc:
+            logger.exception("iperf3 thread crashed: %s", exc)
+            self._bus.publish(
+                f"atf/agent/{self.agent_id}/result/{run_id}",
+                {
+                    "run_id": run_id,
+                    "agent_id": self.agent_id,
+                    "status": "error",
+                    "error": f"exception: {exc}",
+                },
+                qos=1,
             )
-        else:
-            result = run_iperf3(
-                server=cfg.get("server", "localhost"),
-                port=cfg.get("port", 5201),
-                duration=duration_sec,
-                protocol="udp" if cfg.get("type", "").endswith("udp") else "tcp",
-                bandwidth_mbps=cfg.get("bandwidth_mbps"),
-                parallel=cfg.get("parallel", 1),
-                direction=direction,
-                ac=ac,
-                on_sample=_on_sample,
-            )
+            self._current_run_id = None
+            self._traffic_config = None
+            self._set_state("IDLE")
+            return
 
         self._set_state("REPORTING")
 
