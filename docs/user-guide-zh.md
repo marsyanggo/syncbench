@@ -76,7 +76,7 @@ syncbench 是一個 **平台無關（platform-agnostic）** 的 Wi-Fi Airtime Fa
 | **Web UI + 即時圖表** | **Inspector（FastAPI + Chart.js）** | **Mac mini（`http://localhost:8080`）** |
 | 時間序列資料庫 | InfluxDB 2.7 | Mac mini |
 | 訊息匯流排 | Mosquitto MQTT 2.0 | Mac mini |
-| Agent | `atf-agent` systemd 服務 | 每台裝置 |
+| Agent | `atf-agent`（Linux 用 systemd / macOS 用 LaunchAgent）| 每台裝置 |
 | 流量工具 | `iperf3` server（Mac）/ client（裝置）| 兩端 |
 | 歷史儀表板 *（選用）* | Grafana 11 | Mac mini（`http://localhost:3000`）|
 
@@ -317,6 +317,54 @@ ssh -i ~/.ssh/id_ed25519_personal user@$NB_IP \
 > ```
 > sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
 > ```
+
+### 6.8 加入 Mac 當 STA（macOS 14+ / Apple Silicon）
+
+`scripts/setup-macos.sh` 一條指令裝好 Mac agent — Homebrew + iperf3 + uv + LaunchAgent 自動啟動。先在 Mac 上手動連到測試 SSID（System Settings → Wi-Fi），然後：
+
+```bash
+MAC_IP=192.168.1.220        # Mac 的 Wi-Fi IP
+MAC_USER=jenhaoyang         # MacBook 帳號
+AGENT_ID=mac-nb-01          # 唯一 ID
+
+# 0. MacBook 上開 Remote Login（一次性）：
+#    System Settings → General → Sharing → Remote Login → ON
+
+# 1. 推 SSH key（一次性）
+ssh-copy-id -i ~/.ssh/id_ed25519_personal.pub $MAC_USER@$MAC_IP
+
+# 2. Rsync 程式碼（排除 .venv / .git / .env）
+rsync -az --delete \
+  --exclude='.venv/' --exclude='.git/' --exclude='__pycache__/' \
+  --exclude='.env' --exclude='reports/' --exclude='.DS_Store' \
+  -e "ssh -i ~/.ssh/id_ed25519_personal" \
+  ~/workspace/syncbench/ $MAC_USER@$MAC_IP:~/airtime_fairness/
+
+# 3. 跑 setup
+ssh -i ~/.ssh/id_ed25519_personal $MAC_USER@$MAC_IP \
+  "bash ~/airtime_fairness/scripts/setup-macos.sh \
+     --broker atf-broker.local \
+     --agent-id $AGENT_ID"
+```
+
+`setup-macos.sh` 自動：
+1. 裝 Homebrew（如果還沒裝）
+2. `brew install iperf3 uv`
+3. 在 repo 跑 `uv sync`
+4. Smoke check agent 啟動
+5. 寫 `~/Library/LaunchAgents/com.atf.agent.plist` 並 bootstrap（登入自動跑、crash 自動重啟）
+
+#### Mac 端注意事項
+
+- **不改 hostname** — `agent_id` 跟系統 hostname 無關；orchestrator 透過 MQTT 找 Mac，不靠 mDNS
+- **無法程式化關 Wi-Fi power save** — Apple 沒開放這個 knob。穩定吞吐建議插電；長時間測試可以 `defaults write NSGlobalDomain NSAppSleepDisabled -bool YES` 關 App Nap
+- **SSID/BSSID 可能顯示 `<redacted>`** — macOS 14+ 要 Location Services 權限才能讀 SSID。Channel / RSSI / PHY rate / band 不受影響。要解 redact：System Settings → Privacy & Security → Location Services → 把 Terminal/Python 打開
+- **Logs** — `tail -f /tmp/atf-agent.out.log`（stdout）/ `/tmp/atf-agent.err.log`（stderr）
+- **停止 / 重啟** —
+  ```bash
+  launchctl bootout gui/$UID/com.atf.agent
+  launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.atf.agent.plist
+  ```
 
 其他平台（Windows、Android 等）跟抽象架構說明，請看 [multi-platform-zh.md](multi-platform-zh.md)。
 

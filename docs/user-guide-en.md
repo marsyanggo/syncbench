@@ -76,7 +76,7 @@ The framework itself is transport-agnostic — only the ATF on/off toggle in tes
 | **Web UI + live chart** | **Inspector (FastAPI + Chart.js)** | **Mac mini (`http://localhost:8080`)** |
 | Time series DB | InfluxDB 2.7 | Mac mini |
 | Message bus | Mosquitto MQTT 2.0 | Mac mini |
-| Agent | `atf-agent` systemd service | Each device |
+| Agent | `atf-agent` (systemd on Linux / LaunchAgent on macOS) | Each device |
 | Traffic | `iperf3` server (Mac) / client (device) | Both sides |
 | Historical dashboard *(optional)* | Grafana 11 | Mac mini (`http://localhost:3000`) |
 
@@ -317,6 +317,54 @@ ssh -i ~/.ssh/id_ed25519_personal user@$NB_IP \
 > ```
 > sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
 > ```
+
+### 6.8 Adding a Mac as a STA (macOS 14+ / Apple Silicon)
+
+`scripts/setup-macos.sh` installs an agent on a Mac in one shot — Homebrew + iperf3 + uv + LaunchAgent for auto-start. Connect the Mac to the test SSID manually via System Settings → Wi-Fi first, then:
+
+```bash
+MAC_IP=192.168.1.220        # the Mac's Wi-Fi IP
+MAC_USER=jenhaoyang         # MacBook account name
+AGENT_ID=mac-nb-01          # unique per device
+
+# 0. Enable Remote Login on the MacBook (one-time):
+#    System Settings → General → Sharing → Remote Login → ON
+
+# 1. Copy SSH key (one-time)
+ssh-copy-id -i ~/.ssh/id_ed25519_personal.pub $MAC_USER@$MAC_IP
+
+# 2. Rsync code (skip .venv / .git / .env)
+rsync -az --delete \
+  --exclude='.venv/' --exclude='.git/' --exclude='__pycache__/' \
+  --exclude='.env' --exclude='reports/' --exclude='.DS_Store' \
+  -e "ssh -i ~/.ssh/id_ed25519_personal" \
+  ~/workspace/syncbench/ $MAC_USER@$MAC_IP:~/airtime_fairness/
+
+# 3. Run setup
+ssh -i ~/.ssh/id_ed25519_personal $MAC_USER@$MAC_IP \
+  "bash ~/airtime_fairness/scripts/setup-macos.sh \
+     --broker atf-broker.local \
+     --agent-id $AGENT_ID"
+```
+
+`setup-macos.sh` automatically:
+1. Installs Homebrew (if missing)
+2. `brew install iperf3 uv`
+3. Runs `uv sync` in the repo
+4. Smoke checks the agent boots
+5. Writes `~/Library/LaunchAgents/com.atf.agent.plist` and bootstraps it (auto-starts on login, restarts on crash)
+
+#### Mac-specific notes
+
+- **No hostname change** — `agent_id` is independent of system hostname; the orchestrator finds the Mac via MQTT, not mDNS
+- **No Wi-Fi power-save toggle** — Apple does not expose the knob. Keep the Mac plugged in for stable throughput; consider `defaults write NSGlobalDomain NSAppSleepDisabled -bool YES` to suppress App Nap on long runs
+- **SSID/BSSID may show `<redacted>`** — macOS 14+ requires Location Services permission for SSID. Channel / RSSI / PHY rate / band are reliable without permission. To unredact: System Settings → Privacy & Security → Location Services → Terminal/Python ON
+- **Logs** — `tail -f /tmp/atf-agent.out.log` (stdout) or `/tmp/atf-agent.err.log` (stderr)
+- **Stop / restart** —
+  ```bash
+  launchctl bootout gui/$UID/com.atf.agent
+  launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.atf.agent.plist
+  ```
 
 For other platforms (Windows, Android, etc.) and the abstraction architecture, see [multi-platform.md](multi-platform.md).
 

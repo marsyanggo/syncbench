@@ -11,7 +11,7 @@ syncbench 的 agent 設計支援異質客戶端裝置，反映真實世界的 Wi
 | 平台 | 狀態 | Adapter | 已測試 | 備註 |
 |---|---|---|---|---|
 | Linux（Debian-based）| ✅ Stable | `LinuxAdapter` | RPi 4/400/500、Ubuntu/Debian 筆電 | Phase 1 參考平台 |
-| macOS（Apple Silicon）| 🟡 Dev only | `MacOSAdapter` | Mac mini M 系列 | 用作 controller；agent 路徑可跑 local smoke test |
+| macOS（Apple Silicon）| ✅ Stable | `MacOSAdapter` | Mac mini M 系列、MacBook (macOS 26+) | 用 `scripts/setup-macos.sh`；LaunchAgent 自動啟動 |
 | Windows | ⚪ 規劃中（Phase 2）| — | — | `netsh wlan` 取 link，`w32time` 取 NTP |
 | Android | ⚪ 規劃中（Phase 2）| — | — | Termux + iperf3 binary，`dumpsys wifi` 取 link |
 | iOS | ⚪ 未來（Phase 3）| — | — | 需要原生 app（沒 shell）|
@@ -108,9 +108,13 @@ def _make_platform_adapter():
 
 ### macOS
 
-- `airport` CLI 是唯一不彈 GUI 就能讀 SSID/BSSID 的方式（macOS 14+ 已 deprecated；可能需 `wdutil` fallback）
-- NTP 由 `timed` 管，沒 chrony — `is_ntp_synced()` 永遠回 True（controller 端用沒問題）
-- 沒法不透過 GUI 關 Wi-Fi power save — 不建議當作 STA 跑生產測試
+- `airport` CLI 在 macOS 14.4+ 已被 Apple 移除（macOS 26 完全沒了）。Link info 改用 `system_profiler -json SPAirPortDataType`，會強制 Wi-Fi 重掃所以單次 ~7-8s — `MacOSAdapter` 把它放到背景 daemon thread 跑，heartbeat 永遠拿 cache 秒回（每 30s 刷新）
+- IP 用 `ipconfig getifaddr <iface>`（cheap，每次 heartbeat 都呼叫沒問題）
+- SSID/BSSID 在沒給 Terminal/Python Location Services 權限的情況下會被 Apple 隱碼成 `<redacted>`（System Settings → Privacy & Security → Location Services 可解）。Channel/RSSI/PHY rate 不受影響，`band` 跟 `freq_mhz` 可靠
+- 6E channel 1 = 5955 MHz 落在 base.py 6000 邊界以下，`MacOSAdapter.get_band()` 把邊界改成 5925 MHz
+- NTP 由 `timed` 管，沒 chrony — `is_ntp_synced()` 永遠回 True
+- 沒法程式化關 Wi-Fi power save — 穩定吞吐記得插電；長時間測試考慮 `defaults write NSGlobalDomain NSAppSleepDisabled -bool YES` 關 App Nap
+- 自動啟動透過 `~/Library/LaunchAgents/com.atf.agent.plist`（`scripts/setup-macos.sh` 自動建好）
 
 ### Windows（規劃中）
 

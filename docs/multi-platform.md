@@ -11,7 +11,7 @@ syncbench agents run on heterogeneous client devices to mirror real-world Wi-Fi 
 | Platform | Status | Adapter | Tested on | Notes |
 |---|---|---|---|---|
 | Linux (Debian-based) | ✅ Stable | `LinuxAdapter` | RPi 4/400/500, Ubuntu/Debian laptops | Phase 1 reference platform |
-| macOS (Apple Silicon) | 🟡 Dev only | `MacOSAdapter` | Mac mini M-series | Used as controller; agent works for local smoke tests |
+| macOS (Apple Silicon) | ✅ Stable | `MacOSAdapter` | Mac mini M-series, MacBook (macOS 26+) | Use `scripts/setup-macos.sh`; LaunchAgent auto-start |
 | Windows | ⚪ Planned (Phase 2) | — | — | `netsh wlan` for link info, `w32time` for NTP |
 | Android | ⚪ Planned (Phase 2) | — | — | Termux + iperf3 binary, `dumpsys wifi` for link info |
 | iOS | ⚪ Future (Phase 3) | — | — | Requires native app (no shell) |
@@ -108,9 +108,13 @@ To add (e.g.) Windows support:
 
 ### macOS
 
-- `airport` CLI is the only way to read SSID/BSSID without GUI prompts (deprecated in macOS 14+; may need `wdutil` fallback)
-- NTP managed by `timed`, no chrony — `is_ntp_synced()` returns True unconditionally (acceptable for controller-side use)
-- Cannot disable Wi-Fi power save without GUI changes — not recommended as a STA in production tests
+- `airport` CLI removed in macOS 14.4+ (and absent on macOS 26). Link info comes from `system_profiler -json SPAirPortDataType`, which forces a fresh Wi-Fi rescan and takes ~7-8s per call — `MacOSAdapter` runs it on a background daemon thread and the heartbeat returns the cached value instantly (refreshed every 30s)
+- IP via `ipconfig getifaddr <iface>` (cheap, called per heartbeat)
+- SSID/BSSID are redacted by Apple privacy unless Terminal/Python is granted Location Services permission (System Settings → Privacy → Location Services). Channel/RSSI/PHY rate work without permission — `band` and `freq_mhz` are reliable
+- 6E channel 1 = 5955 MHz, below the base.py 6000 threshold, so `MacOSAdapter.get_band()` overrides the boundary at 5925 MHz
+- NTP managed by `timed`, no chrony — `is_ntp_synced()` returns True unconditionally
+- Cannot disable Wi-Fi power save programmatically — keep the Mac plugged in for stable throughput; consider `defaults write NSGlobalDomain NSAppSleepDisabled -bool YES` to suppress App Nap
+- Auto-start via LaunchAgent at `~/Library/LaunchAgents/com.atf.agent.plist` (installed by `scripts/setup-macos.sh`)
 
 ### Windows (planned)
 

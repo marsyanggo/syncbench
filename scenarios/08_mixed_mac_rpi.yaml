@@ -1,0 +1,35 @@
+extends: _base/normal.yaml
+
+name: "Mixed Mac STA + RPi STA — downlink"
+description: |
+  Verifies macOS agent path end-to-end alongside an RPi STA.
+  Downlink mode is the strictest test because it exercises:
+    - Mac get_wifi_ip() override (orchestrator needs it for client target)
+    - Mac iperf3 server spawn on Wi-Fi interface
+    - Orchestrator -> STA reachability across Ethernet/Wi-Fi
+
+  Both STAs use AC_BE — JFI is **not** expected to be ~1.0 here because
+  the radios are asymmetric: M-series Mac with Wi-Fi 6E + multi-stream vs
+  RPi 500 with Wi-Fi 5 single-stream (433 Mbps PHY cap). Reference run on
+  AX4200 5GHz: mac-nb-01 ~600 Mbps, rpi-sta-01 ~100 Mbps, JFI ~0.67.
+  What this scenario validates is the **pipeline**, not airtime fairness —
+  use 03_five_sta_rpi.yaml for fairness measurement on homogeneous radios.
+duration_sec: 20
+
+preflight:
+  expected_agents: ["mac-nb-01", "rpi-sta-01"]
+
+stations:
+  - node: mac-nb-01
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+      direction: downlink
+      ac: be
+
+  - node: rpi-sta-01
+    traffic:
+      type: iperf3_tcp
+      server: "atf-broker.local"
+      direction: downlink
+      ac: be

@@ -1,6 +1,6 @@
 # Project Targets — syncbench
 
-_Last updated: 2026-05-04_
+_Last updated: 2026-05-05_
 
 ---
 
@@ -139,6 +139,37 @@ _Last updated: 2026-05-04_
 - [x] `docs/user-guide-en.md` / `user-guide-zh.md` 補充 AC 選擇說明與方向不對稱警告
 - [~] `LinuxAdapter.get_link_info()`：補充回報 DSCP / TOS 實際值 — skip，已透過測量結果驗證（VI 194 Mbps vs BE 40 Mbps）
 - [~] `MacOSAdapter.get_link_info()`：補 `freq_mhz` 替換 deprecated `airport` — skip，Mac 為 orchestrator 非 agent，不影響測試
+
+---
+
+## Goal: Mac Agent 支援（macOS 26.x）
+
+> 讓 MacBook 也能當 STA agent 加進 testbed。設計原則：所有改動隔離在 Mac 路徑，**不動 Linux/RPi 既有行為**。
+
+### Step 1 — MacOSAdapter 重寫（macOS 14.4+ 沒 airport）
+
+- [x] `get_wifi_ip()` override：用 `ipconfig getifaddr <iface>`（base.py 用 Linux ioctl `SIOCGIFADDR` 在 Mac 失敗）
+- [x] `get_link_info()` 改用 `system_profiler -json SPAirPortDataType`（airport CLI 已被 Apple 移除）
+- [x] 背景 daemon thread 每 30s 輪詢 link info（system_profiler 單次 ~7-8s，不能擋 1Hz heartbeat）
+- [x] `get_band()` override：6E channel 1 = 5955 MHz，base.py 6000 邊界會誤判成 5G，改為 5925 MHz 邊界
+- [x] 解析 SSID / BSSID / RSSI / freq_mhz / tx_rate_mbps（BSSID/SSID 受 Location Services 權限影響，正常）
+
+### Step 2 — Mac Setup 自動化
+
+- [x] `scripts/setup-macos.sh`：brew 裝 iperf3 + uv → `uv sync` → smoke check → LaunchAgent
+- [x] LaunchAgent (`~/Library/LaunchAgents/com.atf.agent.plist`)：登入自動啟動，crash 自動重啟（KeepAlive）
+
+### Step 3 — 驗證
+
+- [x] Mac mini 本機 adapter smoke test（IP / MAC / link / band 全對）
+- [x] 端到端：agent boot → IDLE → MQTT 心跳 → clean shutdown
+- [x] 新 MacBook 上 `setup-macos.sh` 跑通（rsync repo + ssh-copy-id + LaunchAgent 上線）
+- [x] Mac STA 跟 RPi 混合 scenario：`scenarios/08_mixed_mac_rpi.yaml`（downlink, mac 617 Mbps + rpi 107 Mbps）
+- [x] Bug fix：LaunchAgent plist `EnvironmentVariables.PATH` 加 `/usr/sbin:/sbin`（不然 networksetup/ipconfig/system_profiler 找不到）
+
+### Step 4 — 文件
+
+- [x] `docs/multi-platform.md`：Mac 狀態 🟡 → ✅，補充 system_profiler 限制、Location Services 權限、6E band 修正
 
 ---
 

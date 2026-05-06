@@ -6,7 +6,7 @@ Coordinates real client devices — Raspberry Pi, Linux laptops, Android phones,
 
 If you've ever needed to ask *"are these N clients really being treated the same?"* — and wished the answer didn't require either a $50K test chamber or a research-grade tool with a 2012 UI — syncbench is built for that gap.
 
-> **Status:** Phase 3 complete. Per-device traffic direction (↑/↓/↕) and DSCP QoS class (BE/VI/VO/BK) selectable in the Inspector. AP downlink QoS scheduling and WMM EDCA uplink/downlink asymmetry documented with measurements. 7 reference scenarios included.
+> **Status:** Phase 3 complete. Per-device traffic direction (↑/↓/↕) and DSCP QoS class (BE/VI/VO/BK) selectable in the Inspector. AP downlink QoS scheduling and WMM EDCA uplink/downlink asymmetry documented with measurements. macOS station support stable (RPi + Mac mixed scenario). 8 reference scenarios included.
 
 ---
 
@@ -37,12 +37,40 @@ The orchestration layer doesn't care what you're benchmarking. Wi-Fi airtime fai
 
 - **MQTT-orchestrated control plane** — a Mac/Linux controller broadcasts run parameters; agents on each client device subscribe and execute in lock-step
 - **Sub-millisecond synchronized start** — NTP-anchored `sleep_until` (coarse sleep + busy-wait); measured **0–1 ms** offset across mixed ARM64 / x86_64 hardware
-- **Pluggable platform adapters** — Raspberry Pi OS, Ubuntu/Debian today; macOS / Windows / Android on the Phase 2 roadmap. Same `PlatformAdapter` ABC, no scenario rewrites
+- **Pluggable platform adapters** — Raspberry Pi OS, Ubuntu/Debian, **macOS (Apple Silicon)** today; Windows / Android on the roadmap. Same `PlatformAdapter` ABC, no scenario rewrites
 - **Integrated web UI** — built-in Inspector at `localhost:8080`; select devices, start a run, and watch live per-second throughput curves — no separate Grafana tab needed
 - **Automated reports** — Jain's Fairness Index, per-endpoint percentiles, and a markdown summary generated on every run
 - **Wi-Fi band + IP display** — each agent reports its connected band (2.4G / 5G / 6G) and current IP address; both visible in the Inspector device list in real time
 - **Offline device guard** — if a selected device goes offline, an 8-second grace period with a visible warning fires before auto-deselecting it; device comes back online within 8s → no interruption
 - **Standards-only data path** — uses `iw`, `nl80211`, `hostapd_cli`, Linux `debugfs`, and the `iperf3 --json` interface. No vendor-private APIs anywhere
+
+---
+
+## Supported Platforms
+
+Agents run on heterogeneous client devices behind a single `PlatformAdapter` ABC — scenarios don't change when you mix OSes. The controller (orchestrator + Inspector + broker) is currently macOS-only.
+
+### Stations (where agents run)
+
+| OS | Status | Adapter | Tested on | Auto-install |
+|---|---|---|---|---|
+| Linux (Debian-based) | ✅ Stable | `LinuxAdapter` | RPi 4 / 400 / 500, Ubuntu / Debian laptops | `scripts/setup-linux.sh` (apt + systemd) |
+| macOS (Apple Silicon) | ✅ Stable | `MacOSAdapter` | Mac mini M-series, MacBook Pro M4 (macOS 26.x) | `scripts/setup-macos.sh` (Homebrew + LaunchAgent) |
+| Windows | ⚪ Planned | — | — | `netsh wlan` for link, `w32time` for NTP |
+| Android | ⚪ Planned | — | — | Termux + iperf3, `dumpsys wifi` for link |
+| iOS | ⚪ Future | — | — | Requires native app (no shell) |
+
+### Reference hardware (validated)
+
+| Device | Role | Wi-Fi | Notes |
+|---|---|---|---|
+| Mac mini (M-series) | Controller | n/a (Ethernet) | Runs broker + InfluxDB + Inspector |
+| MacBook Pro M4 | Station | Wi-Fi 6E (6 GHz) | macOS 26.x, ~600 Mbps downlink in 5 GHz, 6 GHz tested |
+| Raspberry Pi 4 / 400 / 500 | Station | Wi-Fi 5 / 6 | 433 Mbps PHY cap on RPi 500 (1×1 single-stream) |
+| Ubuntu / Debian laptop (Wi-Fi 6) | Station | Wi-Fi 6 | Disable power save + suspend for stable runs |
+| ASUS AX4200 (MT7986A / mt76) | Access Point under test | Wi-Fi 6 (HE80) | OpenWrt; `airtime_weight` + `AQL` supported |
+
+See [docs/multi-platform.md](docs/multi-platform.md) for the cross-platform abstraction details and how to add a new OS.
 
 ---
 
@@ -166,6 +194,15 @@ A controller publishes to an MQTT broker; agents on each client device subscribe
 ## Feature History
 
 > Newest additions at the top.
+
+### macOS station support _(2026-05-05)_
+
+- **`MacOSAdapter` rewrite** — agent runs on macOS 26.x as a first-class STA. `airport` CLI removed by Apple, so link info comes from `system_profiler -json SPAirPortDataType` on a background daemon thread (~7s rescan, refreshed every 30s) so heartbeat never blocks
+- **`get_wifi_ip()` override** — Linux `SIOCGIFADDR` ioctl doesn't exist on Darwin; Mac path uses `ipconfig getifaddr <iface>` per heartbeat (cheap)
+- **6 GHz band detection fix** — `MacOSAdapter.get_band()` corrects the UNII-5 boundary at 5925 MHz (base.py default at 6000 MHz misclassifies 6E channel 1 = 5955 MHz as 5G)
+- **`scripts/setup-macos.sh`** — one-shot install: Homebrew + iperf3 + uv + uv sync + LaunchAgent at `~/Library/LaunchAgents/com.atf.agent.plist`. Mirrors `setup-linux.sh` flow
+- **LaunchAgent + KeepAlive** — agent auto-starts on login and restarts on crash; `EnvironmentVariables.PATH` includes `/usr/sbin:/sbin` so `networksetup` / `ipconfig` / `system_profiler` resolve correctly under launchd
+- **`scenarios/08_mixed_mac_rpi.yaml`** — verifies the full pipeline (downlink, mixed Mac + RPi, ACK-IP path, cross-platform iperf3 server/client). Reference: ~617 Mbps Mac + ~107 Mbps RPi (asymmetric radios; the test validates the pipeline, not fairness)
 
 ### Phase 3 — Traffic Direction + QoS _(2026-05-01 →)_
 
