@@ -1,6 +1,6 @@
 # Project Targets — syncbench
 
-_Last updated: 2026-05-05_
+_Last updated: 2026-05-11_
 
 ---
 
@@ -200,9 +200,13 @@ _Last updated: 2026-05-05_
 
 ### Step 4 — 文件
 
-- [x] `docs/multi-platform.md` Support Matrix：Windows 從 ⚪ Planned → ✅ Stable
-- [x] Per-Platform Caveats Windows 區塊：netsh 速度、英文 UI 限制、Signal%→RSSI 估算、firewall scope、Wi-Fi adapter sleep 應對、winget caveats、w32time 注意事項
+- [x] `docs/multi-platform.md` Support Matrix + Per-Platform Caveats Windows 區塊（netsh 速度、英文 UI 限制、Signal%→RSSI 估算、firewall scope、Wi-Fi adapter sleep 應對、winget caveats、w32time 注意事項）
 - [x] Adding a New Platform Recipe：範例從 Windows 改為 Android（Windows 已完成可作為 onboarding 範本）
+- [x] `docs/multi-platform-zh.md` 同步：Support Matrix + Caveats + Recipe 範例
+- [x] `README.md`：Status line、Pluggable adapters bullet、Support Platforms 表、新增 Feature History "Windows station support (2026-05-11)" 段
+- [x] `docs/user-guide-en.md` + `docs/user-guide-zh.md`：Agent 表加 Windows、新增 §6.9 "Adding a Windows machine as a STA"（兩語版本對齊 779 行）
+- [x] 「未實機驗證」warning：Status 從 ✅ Stable 降為 🟡 Dev only；user-facing docs 全部加 warning banner（避免誤導）
+- [x] 兩個 commit 推上 GitHub main（`dbf5de2` code + `1660a6d` docs）
 
 ---
 
