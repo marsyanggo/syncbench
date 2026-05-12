@@ -6,7 +6,7 @@ Coordinates real client devices — Raspberry Pi, Linux laptops, Android phones,
 
 If you've ever needed to ask *"are these N clients really being treated the same?"* — and wished the answer didn't require either a $50K test chamber or a research-grade tool with a 2012 UI — syncbench is built for that gap.
 
-> **Status:** Phase 3 complete. Per-device traffic direction (↑/↓/↕) and DSCP QoS class (BE/VI/VO/BK) selectable in the Inspector. AP downlink QoS scheduling and WMM EDCA uplink/downlink asymmetry documented with measurements. macOS station support stable (RPi + Mac mixed scenario). 8 reference scenarios included.
+> **Status:** Phase 3 complete. Per-device traffic direction (↑/↓/↕) and DSCP QoS class (BE/VI/VO/BK) selectable in the Inspector. AP downlink QoS scheduling and WMM EDCA uplink/downlink asymmetry documented with measurements. macOS station support stable (RPi + Mac mixed scenario). Windows station support code-complete but **not yet validated on real Windows hardware** — see [Feature History](#windows-station-support-2026-05-11). 8 reference scenarios included.
 
 ---
 
@@ -37,7 +37,7 @@ The orchestration layer doesn't care what you're benchmarking. Wi-Fi airtime fai
 
 - **MQTT-orchestrated control plane** — a Mac/Linux controller broadcasts run parameters; agents on each client device subscribe and execute in lock-step
 - **Sub-millisecond synchronized start** — NTP-anchored `sleep_until` (coarse sleep + busy-wait); measured **0–1 ms** offset across mixed ARM64 / x86_64 hardware
-- **Pluggable platform adapters** — Raspberry Pi OS, Ubuntu/Debian, **macOS (Apple Silicon)** today; Windows / Android on the roadmap. Same `PlatformAdapter` ABC, no scenario rewrites
+- **Pluggable platform adapters** — Raspberry Pi OS, Ubuntu/Debian, **macOS (Apple Silicon)**, **Windows 10/11** today; Android on the roadmap. Same `PlatformAdapter` ABC, no scenario rewrites
 - **Integrated web UI** — built-in Inspector at `localhost:8080`; select devices, start a run, and watch live per-second throughput curves — no separate Grafana tab needed
 - **Automated reports** — Jain's Fairness Index, per-endpoint percentiles, and a markdown summary generated on every run
 - **Wi-Fi band + IP display** — each agent reports its connected band (2.4G / 5G / 6G) and current IP address; both visible in the Inspector device list in real time
@@ -56,7 +56,7 @@ Agents run on heterogeneous client devices behind a single `PlatformAdapter` ABC
 |---|---|---|---|---|
 | Linux (Debian-based) | ✅ Stable | `LinuxAdapter` | RPi 4 / 400 / 500, Ubuntu / Debian laptops | `scripts/setup-linux.sh` (apt + systemd) |
 | macOS (Apple Silicon) | ✅ Stable | `MacOSAdapter` | Mac mini M-series, MacBook Pro M4 (macOS 26.x) | `scripts/setup-macos.sh` (Homebrew + LaunchAgent) |
-| Windows | ⚪ Planned | — | — | `netsh wlan` for link, `w32time` for NTP |
+| Windows | 🟡 Dev only | `WindowsAdapter` | _Not yet validated on hardware_ (English UI target) | `scripts/setup-windows.ps1` (admin one-shot: winget + firewall) + manual `run-agent.ps1` launcher |
 | Android | ⚪ Planned | — | — | Termux + iperf3, `dumpsys wifi` for link |
 | iOS | ⚪ Future | — | — | Requires native app (no shell) |
 
@@ -194,6 +194,19 @@ A controller publishes to an MQTT broker; agents on each client device subscribe
 ## Feature History
 
 > Newest additions at the top.
+
+### Windows station support _(2026-05-11)_
+
+> ⚠ **Code complete, not yet validated on real Windows hardware.** Implementation, scripts, and docs landed via a 6-agent agent-team flow (Architect + 2 implementers + tech writer + 2 reviewers); both reviewer reports passed (0 P0). End-to-end validation on a Windows 10/11 laptop is pending — `winget` iperf3 package id, `netsh` field parsing on real localized output, and a mixed scenario with RPi/Mac all need on-hardware confirmation. PRs / issues from successful runs welcome.
+
+- **`WindowsAdapter`** — agent runs on Windows 10 / 11 as a first-class STA. Wi-Fi info parsed from `netsh wlan show interfaces` (~50 ms, synchronous — no background poll thread needed unlike macOS `system_profiler`)
+- **`get_wifi_ip()` override** — Linux `SIOCGIFADDR` ioctl (`fcntl`) doesn't exist on Windows; Windows path uses a UDP `connect("8.8.8.8")` socket trick to read the default route source IP (no subprocess, no privileges)
+- **Signal% → RSSI estimation** — Windows reports signal as percentage; adapter applies Microsoft's `RSSI_dBm ≈ (pct/2) - 100` formula. For absolute dBm use an external sniffer
+- **NTP via `w32tm`** — `w32tm /query /status` parses Phase Offset (s → ms) and Last Good Sync Time (< 24 h → synced); ignores Local CMOS Clock / Free-running sources
+- **`scripts/setup-windows.ps1`** — admin one-shot: detects Administrator, `winget install Astral-sh.uv + iperf3` (two-id fallback), `uv sync`, idempotent firewall rules, smoke test
+- **Firewall hardening** — rules scoped to `-Profile Domain,Private -RemoteAddress LocalSubnet`; port 5201 stays closed on public Wi-Fi (coffee-shop / airport) and only accepts local-subnet inbound traffic
+- **`scripts/run-agent.ps1`** — manual non-admin launcher (mirrors macOS LaunchAgent's "setup once, user launches" philosophy without auto-start binding; keeps agent visible in Task Manager)
+- **MVP English Windows UI only** — non-English builds localize `netsh` field labels; documented caveat in [docs/multi-platform.md](docs/multi-platform.md)
 
 ### macOS station support _(2026-05-05)_
 

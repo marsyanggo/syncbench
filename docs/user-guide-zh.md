@@ -76,7 +76,7 @@ syncbench 是一個 **平台無關（platform-agnostic）** 的 Wi-Fi Airtime Fa
 | **Web UI + 即時圖表** | **Inspector（FastAPI + Chart.js）** | **Mac mini（`http://localhost:8080`）** |
 | 時間序列資料庫 | InfluxDB 2.7 | Mac mini |
 | 訊息匯流排 | Mosquitto MQTT 2.0 | Mac mini |
-| Agent | `atf-agent`（Linux 用 systemd / macOS 用 LaunchAgent）| 每台裝置 |
+| Agent | `atf-agent`（Linux systemd / macOS LaunchAgent / Windows 手動 PowerShell launcher）| 每台裝置 |
 | 流量工具 | `iperf3` server（Mac）/ client（裝置）| 兩端 |
 | 歷史儀表板 *（選用）* | Grafana 11 | Mac mini（`http://localhost:3000`）|
 
@@ -366,7 +366,67 @@ ssh -i ~/.ssh/id_ed25519_personal $MAC_USER@$MAC_IP \
   launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.atf.agent.plist
   ```
 
-其他平台（Windows、Android 等）跟抽象架構說明，請看 [multi-platform-zh.md](multi-platform-zh.md)。
+### 6.9 加入 Windows 機器當 STA（Windows 10 / 11）
+
+> ⚠ **Windows 支援已寫完，但尚未實機驗證過。** adapter、setup script、launcher 都已進 repo 且 review 通過；但還沒在實際 Windows 10/11 機器上跑通端到端流程。`winget` 的 iperf3 套件 id 跟 `netsh wlan show interfaces` 欄位解析在你的 Windows 版本上可能需要微調。如果你成功在 Windows 上 bring up 一個 agent，麻煩開 issue / PR 回報，這是把狀態從「Dev only」升到「Stable」最快的方式。
+
+`scripts/setup-windows.ps1` 一次裝好 Windows agent — `winget` 裝 `uv` + `iperf3`、`uv sync`、加 Windows Firewall 規則、smoke test。**Windows 不做自動啟動**；使用者每次測試前手動執行 `scripts/run-agent.ps1`（agent 在 Task Manager 看得到，刻意這樣設計）。
+
+Windows 機器上前置：
+- **Windows 10 1809+ 或 Windows 11**（MVP 限英文 UI — 詳見下方注意事項）
+- **手動連到測試 SSID**（Settings → Network → Wi-Fi）
+- **Git** 已安裝（或從 controller 用 SMB / scp 複製 repo 過去）
+
+在 Windows 機器上 **右鍵 PowerShell → "Run as Administrator"**，然後：
+
+```powershell
+# 1. clone repo（或從 controller 複製過來）
+cd C:\
+git clone https://github.com/<your-fork>/airtime_fairness.git
+cd airtime_fairness
+
+# 2. 跑 setup（admin 一次性）
+.\scripts\setup-windows.ps1 -Broker atf-broker.local -AgentId win-nb-01
+```
+
+`setup-windows.ps1` 自動：
+1. 確認 Administrator 權限（不是的話列出說明後 exit）
+2. `winget install Astral-sh.uv` + iperf3（雙 id fallback，最後手動安裝提示）
+3. 在 repo 跑 `uv sync`
+4. 加 Windows Firewall 規則 iperf3 TCP/UDP port 5201，限縮為 `-Profile Domain,Private -RemoteAddress LocalSubnet`（公共 Wi-Fi 上 port 不暴露）
+5. Smoke test agent 是否能進入 BOOT 狀態
+
+Setup 完成後**開新的 PowerShell 視窗**（讓 `winget` 加進 PATH 的工具生效），每次測試前跑 launcher：
+
+```powershell
+.\scripts\run-agent.ps1 -Broker atf-broker.local -AgentId win-nb-01
+# Ctrl+C 停止
+```
+
+#### Windows 端注意事項
+
+- **MVP 限英文 Windows UI** — 非英文版本（例如德文、日文、繁中）`netsh wlan show interfaces` 的欄位標籤會被在地化，會打壞 adapter 的解析。非英文支援列為未來 enhancement
+- **訊號是百分比，不是 dBm** — adapter 用 Microsoft 公式估算 `RSSI_dBm ≈ (signal_pct / 2) - 100`。要絕對 RSSI 值請外接 sniffer
+- **不自動啟動** — 每次測試手動跑 launcher（刻意不用 Task Scheduler，agent 在 Task Manager 中可見）
+- **Wi-Fi adapter 睡眠**會影響長時間測試。建議：
+  ```powershell
+  # 設定 High-Performance 電源計畫
+  powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
+  # USB Wi-Fi adapter 還要關 USB selective suspend
+  ```
+  另外在 Device Manager → Wi-Fi adapter → Properties → Power Management 把「Allow the computer to turn off this device」取消勾選
+- **NTP 用 `w32time`** — 全新 Win10/11 桌面版的 `w32time` 可能是 manual trigger，第一次同步前 `is_ntp_synced()` 回 False。強制同步一次：
+  ```powershell
+  Start-Service w32time
+  w32tm /resync
+  ```
+- **PowerShell 執行政策** — 如果 `.\scripts\setup-windows.ps1` 不能跑，幫使用者帳號設一次政策：
+  ```powershell
+  Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+  ```
+- **Wi-Fi vs Ethernet** — agent 的 `get_wifi_ip()` 用 socket trick 取 default route source IP。測 Wi-Fi 時請拔掉 Ethernet，避免 orchestrator 看到的是 Ethernet IP 而非 Wi-Fi IP
+
+其他平台（Android、iOS 等）跟抽象架構說明，請看 [multi-platform-zh.md](multi-platform-zh.md)。
 
 ---
 

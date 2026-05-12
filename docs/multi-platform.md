@@ -12,7 +12,7 @@ syncbench agents run on heterogeneous client devices to mirror real-world Wi-Fi 
 |---|---|---|---|---|
 | Linux (Debian-based) | ✅ Stable | `LinuxAdapter` | RPi 4/400/500, Ubuntu/Debian laptops | Phase 1 reference platform |
 | macOS (Apple Silicon) | ✅ Stable | `MacOSAdapter` | Mac mini M-series, MacBook (macOS 26+) | Use `scripts/setup-macos.sh`; LaunchAgent auto-start |
-| Windows | ⚪ Planned (Phase 2) | — | — | `netsh wlan` for link info, `w32time` for NTP |
+| Windows | 🟡 Dev only | `WindowsAdapter` | _Not yet validated on hardware_ (English UI target) | Use `scripts/setup-windows.ps1`; manual launcher (no auto-start) |
 | Android | ⚪ Planned (Phase 2) | — | — | Termux + iperf3 binary, `dumpsys wifi` for link info |
 | iOS | ⚪ Future (Phase 3) | — | — | Requires native app (no shell) |
 | FreeBSD / OpenBSD | ⚪ Future | — | — | `ifconfig`, `ntpd` — straightforward port of LinuxAdapter |
@@ -53,25 +53,25 @@ Everything above this layer (state machine, MQTT bus, iperf3 runner, sync, orche
 
 ## Adding a New Platform — Recipe
 
-To add (e.g.) Windows support:
+To add (e.g.) Android support (Windows is now complete — can serve as template):
 
-1. **Implement `WindowsAdapter`** under `agent/atf_agent/platform/windows.py`:
-   - `get_wifi_interface()` — parse `netsh wlan show interfaces`
-   - `get_wifi_mac()` — parse `getmac` or `wmic nic`
-   - `get_link_info()` — `netsh wlan show interfaces` (SSID, BSSID, signal)
-   - `get_ntp_offset_ms()` — `w32tm /query /status`
+1. **Implement `AndroidAdapter`** under `agent/atf_agent/platform/android.py`:
+   - `get_wifi_interface()` — parse `dumpsys wifi`
+   - `get_wifi_mac()` — parse device info
+   - `get_link_info()` — `dumpsys wifi` (SSID, BSSID, signal)
+   - `get_ntp_offset_ms()` — `ntpctl` (or similar on Termux)
    - `is_ntp_synced()` — same
 
 2. **Wire the adapter** in `_make_platform_adapter()`:
    ```python
-   if os_name == "Windows": return WindowsAdapter()
+   if os_name == "Android": return AndroidAdapter()
    ```
 
 3. **Verify iperf3 works**:
-   - Windows: install via `choco install iperf3` or use bundled exe
-   - Confirm `iperf3 --version` runs from PowerShell
+   - Android: install via Termux package manager or binary
+   - Confirm `iperf3 --version` runs from shell
 
-4. **Add a setup script** under `scripts/setup-windows.ps1` mirroring the Linux flow (chocolatey install, scheduled task instead of systemd, etc.)
+4. **Add a setup script** under `scripts/setup-android.sh` mirroring the Linux flow, adapted for Termux environment
 
 5. **Test the smoke scenario**:
    ```bash
@@ -80,6 +80,8 @@ To add (e.g.) Windows support:
    from the controller, with the new platform device joined to the test SSID.
 
 6. **Update this doc** — bump status from Planned to Dev to Stable as confidence grows.
+
+> **Example:** Windows (implemented in Phase 2) follows this recipe — see `WindowsAdapter` in `agent/atf_agent/platform/windows.py`, `scripts/setup-windows.ps1`, and the Windows section in Per-Platform Caveats above.
 
 ---
 
@@ -116,12 +118,18 @@ To add (e.g.) Windows support:
 - Cannot disable Wi-Fi power save programmatically — keep the Mac plugged in for stable throughput; consider `defaults write NSGlobalDomain NSAppSleepDisabled -bool YES` to suppress App Nap
 - Auto-start via LaunchAgent at `~/Library/LaunchAgents/com.atf.agent.plist` (installed by `scripts/setup-macos.sh`)
 
-### Windows (planned)
+### Windows
 
-- Wi-Fi info via `netsh wlan show interfaces`
-- NTP via `w32time`, but offset reporting is coarse (seconds, not ms)
-- iperf3 must be on PATH; recommend chocolatey or scoop install
-- systemd → Task Scheduler with `New-ScheduledTask` for auto-start
+> ⚠ **Status: code complete, not yet validated on real Windows hardware.** Adapter + setup scripts + docs landed via a multi-agent dev flow; both functional and security reviews passed (0 P0). On-hardware verification of `winget` iperf3 package id, `netsh` field labels on real Windows output, and a mixed-OS scenario run is pending. Report issues with concrete output samples if you hit parser drift.
+
+- Wi-Fi info via `netsh wlan show interfaces` (~50 ms, no background poll needed unlike macOS)
+- **English Windows UI required for MVP** — non-English builds report localized field names (e.g. German "Signal" → "Signal"). Adapter parses English labels; non-English UI is a documented caveat
+- **Signal strength is a percentage**, not actual dBm. Adapter estimates `RSSI_dBm = (signal_pct / 2) - 100` (Microsoft formula). Treat as approximate; for absolute RSSI use an external sniffer
+- **Firewall rule pre-added** by `scripts/setup-windows.ps1` (admin one-shot) for iperf3 TCP/UDP port 5201, scoped to `-Profile Domain,Private -RemoteAddress LocalSubnet` (port stays closed on public Wi-Fi like coffee-shop/airport, and only accepts inbound from the local subnet). The setup script must be run as Administrator; the launcher (`run-agent.ps1`) does not need admin
+- **No auto-start** — user manually runs `scripts/run-agent.ps1` per test session (mirror macOS LaunchAgent's "setup once, user launches" philosophy but without the auto-start binding; Windows Task Scheduler is intentionally not used to keep the agent obvious in Task Manager)
+- **Wi-Fi adapter sleep** can affect long runs. Recommendation: set High-Performance power plan (`powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c`) and disable USB selective suspend
+- **Package manager: winget** (built into Windows 10 1809+ and Windows 11). iperf3 winget id (TODO: verify) — `ar51an.iperf3-win-builds` or `iPerf.iPerf3`; manual install fallback documented in `setup-windows.ps1`
+- NTP via `w32time`. Default Win10/11 desktop installs may have `w32time` as manual trigger; `is_ntp_synced()` returns False until first sync. If clock sync is critical, run `w32tm /resync` or `Start-Service w32time` once
 
 ### Android (planned)
 

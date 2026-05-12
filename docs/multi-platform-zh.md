@@ -12,7 +12,7 @@ syncbench 的 agent 設計支援異質客戶端裝置，反映真實世界的 Wi
 |---|---|---|---|---|
 | Linux（Debian-based）| ✅ Stable | `LinuxAdapter` | RPi 4/400/500、Ubuntu/Debian 筆電 | Phase 1 參考平台 |
 | macOS（Apple Silicon）| ✅ Stable | `MacOSAdapter` | Mac mini M 系列、MacBook (macOS 26+) | 用 `scripts/setup-macos.sh`；LaunchAgent 自動啟動 |
-| Windows | ⚪ 規劃中（Phase 2）| — | — | `netsh wlan` 取 link，`w32time` 取 NTP |
+| Windows | 🟡 Dev only | `WindowsAdapter` | _尚未實機驗證_（目標英文 UI）| 用 `scripts/setup-windows.ps1`；手動 launcher（無自動啟動）|
 | Android | ⚪ 規劃中（Phase 2）| — | — | Termux + iperf3 binary，`dumpsys wifi` 取 link |
 | iOS | ⚪ 未來（Phase 3）| — | — | 需要原生 app（沒 shell）|
 | FreeBSD / OpenBSD | ⚪ 未來 | — | — | `ifconfig`、`ntpd` — LinuxAdapter 直接移植即可 |
@@ -53,25 +53,26 @@ def _make_platform_adapter():
 
 ## 加入新平台的步驟
 
-以加入 Windows 為例：
+以加入 Android 為例（Windows 已實作，可作為新平台 onboarding 範本）：
 
-1. **實作 `WindowsAdapter`** 在 `agent/atf_agent/platform/windows.py`：
-   - `get_wifi_interface()` — parse `netsh wlan show interfaces`
-   - `get_wifi_mac()` — parse `getmac` 或 `wmic nic`
-   - `get_link_info()` — `netsh wlan show interfaces`（SSID、BSSID、訊號）
-   - `get_ntp_offset_ms()` — `w32tm /query /status`
+1. **實作 `AndroidAdapter`** 在 `agent/atf_agent/platform/android.py`：
+   - `get_wifi_interface()` — parse `ip link` 或 `dumpsys wifi`
+   - `get_wifi_mac()` — parse `cat /sys/class/net/wlan0/address` 或 `dumpsys wifi`
+   - `get_link_info()` — `dumpsys wifi`（SSID、BSSID、RSSI、frequency）
+   - `get_ntp_offset_ms()` — Android 無 `chrony` / `w32tm`，需考慮 system clock 同步策略
    - `is_ntp_synced()` — 同上
 
 2. **接上 adapter** 在 `_make_platform_adapter()`：
    ```python
-   if os_name == "Windows": return WindowsAdapter()
+   if os_name == "Linux" and "android" in platform.release().lower():
+       return AndroidAdapter()
    ```
 
 3. **驗證 iperf3 可用**：
-   - Windows：`choco install iperf3` 或用 bundled exe
-   - 確認 `iperf3 --version` 在 PowerShell 跑得起來
+   - Termux：`pkg install iperf3`
+   - 確認 `iperf3 --version` 在 Termux 跑得起來
 
-4. **加 setup script** 在 `scripts/setup-windows.ps1`，比照 Linux flow（chocolatey 安裝、scheduled task 取代 systemd 等）
+4. **加 setup script** 在 `scripts/setup-android.sh`，比照 Linux flow（Termux 套件管理、Termux:Boot 自動啟動取代 systemd 等）
 
 5. **跑 smoke test**：
    ```bash
@@ -116,12 +117,18 @@ def _make_platform_adapter():
 - 沒法程式化關 Wi-Fi power save — 穩定吞吐記得插電；長時間測試考慮 `defaults write NSGlobalDomain NSAppSleepDisabled -bool YES` 關 App Nap
 - 自動啟動透過 `~/Library/LaunchAgents/com.atf.agent.plist`（`scripts/setup-macos.sh` 自動建好）
 
-### Windows（規劃中）
+### Windows
 
-- Wi-Fi info 透過 `netsh wlan show interfaces`
-- NTP 透過 `w32time`，但 offset 解析度粗（秒級，不是毫秒）
-- iperf3 必須在 PATH；建議用 chocolatey 或 scoop 安裝
-- systemd → Task Scheduler 用 `New-ScheduledTask` 自動啟動
+> ⚠ **狀態：程式碼完成，尚未實機驗證。** Adapter + setup scripts + 文件透過多 agent dev flow 完成；functional 與 security review 都過（0 P0）。`winget` iperf3 套件 id、`netsh` 實機輸出欄位、混合平台 scenario 跑通—這些都還需要在 Windows 機器上驗證。若 parser 在實機上漂移，請附 `netsh wlan show interfaces` 完整輸出開 issue。
+
+- Wi-Fi info 透過 `netsh wlan show interfaces`（~50 ms 同步呼叫，不像 macOS `system_profiler` 需要背景 poll thread）
+- **MVP 限英文 Windows UI** — 非英文版本 `netsh` 欄位標籤會被在地化（例如德文「Signal」、日文 / 繁中），會打壞 adapter 的解析。非英文支援列為已知 caveat
+- **訊號是百分比，不是 dBm** — adapter 用 Microsoft 公式估算 `RSSI_dBm ≈ (signal_pct / 2) - 100`。要絕對 dBm 請外接 sniffer
+- **防火牆規則由 `scripts/setup-windows.ps1` 預先建好**（admin 一次性）：iperf3 TCP/UDP port 5201，限縮為 `-Profile Domain,Private -RemoteAddress LocalSubnet`（公共 Wi-Fi 上 port 不暴露，且只接收同網段流量）。Setup 必須 Administrator 跑；launcher（`run-agent.ps1`）不需要 admin
+- **不自動啟動** — 使用者每次測試手動跑 `scripts/run-agent.ps1`（仿 macOS LaunchAgent 「setup once」精神但不綁定自動啟動；Windows Task Scheduler 刻意不用，讓 agent 在 Task Manager 中可見）
+- **Wi-Fi adapter 睡眠**會影響長時間測試。建議：High-Performance 電源計畫（`powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c`）+ 關 USB selective suspend
+- **套件管理：winget**（Windows 10 1809+/11 內建）。iperf3 winget id 待實機確認（`ar51an.iperf3-win-builds` 或 `iPerf.iPerf3`），手動安裝 fallback 寫在 `setup-windows.ps1`
+- **NTP 用 `w32time`** — 全新 Win10/11 桌面版的 `w32time` 可能是 manual trigger；`is_ntp_synced()` 在第一次同步前回 False。要嚴格時間同步請手動跑 `w32tm /resync` 或 `Start-Service w32time`
 
 ### Android（規劃中）
 

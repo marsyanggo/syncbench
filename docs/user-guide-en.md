@@ -76,7 +76,7 @@ The framework itself is transport-agnostic — only the ATF on/off toggle in tes
 | **Web UI + live chart** | **Inspector (FastAPI + Chart.js)** | **Mac mini (`http://localhost:8080`)** |
 | Time series DB | InfluxDB 2.7 | Mac mini |
 | Message bus | Mosquitto MQTT 2.0 | Mac mini |
-| Agent | `atf-agent` (systemd on Linux / LaunchAgent on macOS) | Each device |
+| Agent | `atf-agent` (systemd on Linux / LaunchAgent on macOS / manual PowerShell launcher on Windows) | Each device |
 | Traffic | `iperf3` server (Mac) / client (device) | Both sides |
 | Historical dashboard *(optional)* | Grafana 11 | Mac mini (`http://localhost:3000`) |
 
@@ -366,7 +366,67 @@ ssh -i ~/.ssh/id_ed25519_personal $MAC_USER@$MAC_IP \
   launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.atf.agent.plist
   ```
 
-For other platforms (Windows, Android, etc.) and the abstraction architecture, see [multi-platform.md](multi-platform.md).
+### 6.9 Adding a Windows machine as a STA (Windows 10 / 11)
+
+> ⚠ **Windows support is code-complete but not yet validated on real hardware.** The adapter, setup script, and launcher are in the repo and reviewed; but no real Windows 10/11 run has confirmed the end-to-end flow yet. The `winget` iperf3 package id and `netsh wlan show interfaces` field parsing may need adjustment on your specific Windows build. If you successfully bring up an agent on Windows, please open an issue / PR with notes — that's the fastest way to graduate this from "Dev only" to "Stable".
+
+`scripts/setup-windows.ps1` installs an agent on a Windows machine in one shot — `winget` for `uv` + `iperf3`, `uv sync`, scoped Windows Firewall rules, and a smoke test. There is **no auto-start** on Windows; users manually run `scripts/run-agent.ps1` per test session (keeps the agent visible in Task Manager).
+
+Pre-requisites on the Windows machine:
+- **Windows 10 1809+ or Windows 11** (English UI for MVP — see notes below)
+- **Connected to the test SSID** manually via Settings → Network → Wi-Fi
+- **Git** installed (or copy the repo over via SMB / scp)
+
+On the Windows machine, **right-click PowerShell → "Run as Administrator"**, then:
+
+```powershell
+# 1. Clone the repo (or copy it from the controller)
+cd C:\
+git clone https://github.com/<your-fork>/airtime_fairness.git
+cd airtime_fairness
+
+# 2. Run the setup (admin one-shot)
+.\scripts\setup-windows.ps1 -Broker atf-broker.local -AgentId win-nb-01
+```
+
+`setup-windows.ps1` automatically:
+1. Verifies Administrator privileges (exits with instructions if not)
+2. `winget install Astral-sh.uv` + iperf3 (two-id fallback, then manual prompt)
+3. Runs `uv sync` in the repo
+4. Adds Windows Firewall rules for iperf3 TCP/UDP port 5201, scoped to `-Profile Domain,Private -RemoteAddress LocalSubnet` (port stays closed on public Wi-Fi)
+5. Smoke checks the agent boots and reaches BOOT state
+
+After setup, **open a new PowerShell window** (so `winget` PATH additions take effect) and start the agent for each test session:
+
+```powershell
+.\scripts\run-agent.ps1 -Broker atf-broker.local -AgentId win-nb-01
+# Ctrl+C to stop
+```
+
+#### Windows-specific notes
+
+- **English Windows UI required for MVP** — `netsh wlan show interfaces` field labels are localized on non-English builds (e.g. German, Japanese), which breaks the adapter's parsing. Non-English support is a documented future enhancement
+- **Signal strength is a percentage**, not actual dBm. Adapter estimates `RSSI_dBm ≈ (signal_pct / 2) - 100` (Microsoft formula). Treat as approximate; for absolute RSSI use an external sniffer
+- **No auto-start** — manual launcher per test session (Windows Task Scheduler is intentionally not used to keep the agent obvious in Task Manager)
+- **Wi-Fi adapter sleep** can affect long runs. Recommended:
+  ```powershell
+  # Set High-Performance power plan
+  powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
+  # Also disable USB selective suspend if using a USB Wi-Fi adapter
+  ```
+  And in Device Manager → Wi-Fi adapter → Properties → Power Management → uncheck "Allow the computer to turn off this device"
+- **NTP via `w32time`** — on a fresh Win10/11 desktop install, `w32time` may be set to manual trigger and `is_ntp_synced()` returns False until first sync. Force a sync once:
+  ```powershell
+  Start-Service w32time
+  w32tm /resync
+  ```
+- **PowerShell execution policy** — if `.\scripts\setup-windows.ps1` refuses to run, set policy for the current user once:
+  ```powershell
+  Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+  ```
+- **Wi-Fi vs. Ethernet** — the agent's `get_wifi_ip()` returns the default-route source IP via a socket trick. Disconnect Ethernet during Wi-Fi tests so the orchestrator sees the actual Wi-Fi IP
+
+For other platforms (Android, iOS, etc.) and the abstraction architecture, see [multi-platform.md](multi-platform.md).
 
 ---
 

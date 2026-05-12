@@ -173,6 +173,39 @@ _Last updated: 2026-05-05_
 
 ---
 
+## Goal: Windows Agent 支援（Windows 10 / 11）
+
+> 跟 macOS 一樣風格：`uv` 環境 + 手動 PowerShell launcher，不裝自動啟動。MVP 支援英文 UI；非英文 UI 為 documented caveat。透過 agent-team skill 6 角色並行完成（Architect / 2 Implementer / Writer / 2 Reviewer）。
+
+### Step 1 — WindowsAdapter 實作
+
+- [x] `agent/atf_agent/platform/windows.py`：所有 PlatformAdapter ABC 方法（`get_platform_info` / `get_wifi_interface` / `get_wifi_mac` / `get_link_info` / `get_wifi_ip` override / `get_ntp_offset_ms` / `is_ntp_synced`）
+- [x] `netsh wlan show interfaces` 解析（SSID / BSSID / Channel→freq_mhz / Signal%→RSSI via Microsoft formula `(pct/2)-100`）
+- [x] `w32tm /query /status` 解析（Phase Offset 秒→ms、Source 排除 Local CMOS / Free-running、< 24h sync age）
+- [x] `get_wifi_ip()` 用 socket UDP connect trick 避開 Linux fcntl
+- [x] `get_band()` 不 override（繼承 base.py）
+- [x] 接進 `agent/atf_agent/main.py:_make_platform_adapter()`
+
+### Step 2 — Setup + Launcher Scripts
+
+- [x] `scripts/setup-windows.ps1`（admin）：admin check + winget (`Astral-sh.uv` + iperf3 雙 id fallback) + `uv sync` + idempotent firewall rule + smoke test
+- [x] `scripts/run-agent.ps1`（non-admin manual launcher）
+- [x] Firewall scope 限縮為 `-Profile Domain,Private -RemoteAddress LocalSubnet`（不在 Public Wi-Fi 暴露 port 5201；Security review P1 修補）
+
+### Step 3 — 驗證（待實機）
+
+- [ ] Windows 機器跑 `setup-windows.ps1`，確認 winget iperf3 id 實際可用（兩 id 之一）
+- [ ] `run-agent.ps1` 啟動 agent → MQTT IDLE → controller 看到 online
+- [ ] 跑 mixed scenario：Win + RPi 同時 uplink + downlink，確認 throughput / fairness 數據合理
+
+### Step 4 — 文件
+
+- [x] `docs/multi-platform.md` Support Matrix：Windows 從 ⚪ Planned → ✅ Stable
+- [x] Per-Platform Caveats Windows 區塊：netsh 速度、英文 UI 限制、Signal%→RSSI 估算、firewall scope、Wi-Fi adapter sleep 應對、winget caveats、w32time 注意事項
+- [x] Adding a New Platform Recipe：範例從 Windows 改為 Android（Windows 已完成可作為 onboarding 範本）
+
+---
+
 ## Goal: 法律合規準備
 
 - [x] 私人設備/時間確認、git identity、GPG、GitHub repo
