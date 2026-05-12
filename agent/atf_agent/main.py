@@ -39,6 +39,9 @@ def _make_platform_adapter():
     elif os_name == "Darwin":
         from agent.atf_agent.platform.macos import MacOSAdapter
         return MacOSAdapter()
+    elif os_name == "Windows":
+        from agent.atf_agent.platform.windows import WindowsAdapter
+        return WindowsAdapter()
     else:
         raise RuntimeError(f"Unsupported platform: {os_name}")
 
