@@ -1,6 +1,6 @@
 # Project Targets — syncbench
 
-_Last updated: 2026-05-11_
+_Last updated: 2026-05-14_
 
 ---
 
@@ -207,6 +207,41 @@ _Last updated: 2026-05-11_
 - [x] `docs/user-guide-en.md` + `docs/user-guide-zh.md`：Agent 表加 Windows、新增 §6.9 "Adding a Windows machine as a STA"（兩語版本對齊 779 行）
 - [x] 「未實機驗證」warning：Status 從 ✅ Stable 降為 🟡 Dev only；user-facing docs 全部加 warning banner（避免誤導）
 - [x] 兩個 commit 推上 GitHub main（`dbf5de2` code + `1660a6d` docs）
+
+---
+
+## Goal: Buildroot 預燒 RPi Image
+
+> 用 Buildroot 產生一個 default image，燒進 RPi 即內建 syncbench agent + 整合好的 systemd service，不需要手動 `setup-rpi.sh`。降低新加 STA 的部署成本。
+
+### Step 1 — 第一版 image（已完成）
+
+- [x] 學 Buildroot 流程，產出可開機的原始 image
+- [x] 在 RPi 上實機驗證可開機
+
+### Step 2 — Image 進 repo
+
+- [ ] 把目前 image copy 到 `rpi-image/` 資料夾
+- [ ] `rpi-image/README.md`：image 版本 / 燒錄方式 / default credentials / 已知限制
+
+### Step 3 — Buildroot config / overlay 整合 syncbench
+
+- [ ] Buildroot defconfig 收進 `rpi-image/configs/`（之後可重現 build）
+- [ ] root filesystem overlay：預先放 `atf-agent` code（或 `uv sync` 過的環境）
+- [ ] 預裝相依：`iperf3`、Python runtime、`uv`（或 wheel-based 部署）
+- [ ] `atf-agent.service` 預設 enabled，開機自動跑
+
+### Step 4 — First-boot 自動化
+
+- [ ] hostname / agent_id 第一次開機可從 SD card config 改（不用每台手動 edit）
+- [ ] Wi-Fi credentials 從外部 config 注入（不寫死在 image）
+- [ ] MQTT broker 位址 / InfluxDB token 同上
+
+### Step 5 — 文件 + 驗證
+
+- [ ] `docs/multi-platform.md`：新增「RPi pre-baked image」章節作為部署選項
+- [ ] 燒一張新卡上線新 STA，驗證 boot → 自動連 MQTT → controller 看到 online（無人工介入）
+- [ ] 對比手動 `setup-rpi.sh` 流程的時間差，記錄到 README
 
 ---
 

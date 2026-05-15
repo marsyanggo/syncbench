@@ -7,6 +7,8 @@ Coordinates real client devices — Raspberry Pi, Linux laptops, Android phones,
 If you've ever needed to ask *"are these N clients really being treated the same?"* — and wished the answer didn't require either a $50K test chamber or a research-grade tool with a 2012 UI — syncbench is built for that gap.
 
 > **Status:** Phase 3 complete. Per-device traffic direction (↑/↓/↕) and DSCP QoS class (BE/VI/VO/BK) selectable in the Inspector. AP downlink QoS scheduling and WMM EDCA uplink/downlink asymmetry documented with measurements. macOS station support stable (RPi + Mac mixed scenario). Windows station support code-complete but **not yet validated on real Windows hardware** — see [Feature History](#windows-station-support-2026-05-11). 8 reference scenarios included.
+>
+> 🛠️ **Now learning: Buildroot pre-baked RPi image.** Goal — flash one SD card and the RPi boots straight into a syncbench agent (no `setup-linux.sh`, no manual `uv sync`, no `systemctl enable`). First bootable image lives at [`rpi-image/pi5-buildroot.img`](rpi-image/) (Git LFS); syncbench agent integration into the Buildroot rootfs is in progress. See [`rpi-image/README.md`](rpi-image/README.md) for status and roadmap.
 
 ---
 
@@ -195,6 +197,15 @@ A controller publishes to an MQTT broker; agents on each client device subscribe
 
 > Newest additions at the top.
 
+### Buildroot pre-baked RPi image _(2026-05-14, 🛠️ in progress)_
+
+> 🛠️ **Currently learning Buildroot to ship a turnkey RPi image.** First bootable image landed; syncbench agent integration into the rootfs is the next milestone. Once shipped, adding a new RPi STA collapses from ~10 minutes of `setup-linux.sh` + `uv sync` + Wi-Fi config + service enable down to "flash SD → boot → online".
+
+- **`rpi-image/pi5-buildroot.img`** — first hand-built Buildroot image for Raspberry Pi 5 (152 MB raw, MBR with FAT32 `/boot` + ext4 rootfs); confirmed bootable on real RPi hardware. Tracked via Git LFS so the repo stays small
+- **Roadmap (in progress)**: bake `atf-agent` + `iperf3` + `uv` into the rootfs overlay → enable `atf-agent.service` by default → first-boot config injection (hostname / agent_id / Wi-Fi creds / MQTT broker) from a SD-card config file → end-to-end "flash and forget" deployment validated against the existing manual flow
+- **Why** — current RPi onboarding requires running `scripts/setup-linux.sh` over SSH, which assumes the device is already on Wi-Fi and reachable. A Buildroot image that comes online with the agent already running removes that bootstrap problem and makes scaling to 10+ STAs realistic
+- See [`rpi-image/README.md`](rpi-image/README.md) for image spec, flashing instructions, and the integration TODO list
+
 ### Windows station support _(2026-05-11)_
 
 > ⚠ **Code complete, not yet validated on real Windows hardware.** Implementation, scripts, and docs landed via a 6-agent agent-team flow (Architect + 2 implementers + tech writer + 2 reviewers); both reviewer reports passed (0 P0). End-to-end validation on a Windows 10/11 laptop is pending — `winget` iperf3 package id, `netsh` field parsing on real localized output, and a mixed scenario with RPi/Mac all need on-hardware confirmation. PRs / issues from successful runs welcome.
@@ -264,6 +275,8 @@ A controller publishes to an MQTT broker; agents on each client device subscribe
 **Phase 2 — done.** Integrated web UI: device selector, one-click run, native Chart.js live throughput (metronome-driven — all lines advance in lockstep), Jain's FI in-browser. Per-device Wi-Fi band + IP display. Offline guard with 8s grace period. Grafana demoted to optional.
 
 **Phase 3 — done.** Per-device traffic direction (↑ uplink / ↓ downlink / ↕ bidir) and DSCP QoS class (BE/VI/VO/BK) selectable in Inspector. Key finding: AP downlink prioritizes AC_VI (194 Mbps) over AC_BE (40 Mbps); uplink reverses due to WMM EDCA TXOP limit. AC_VO queue overflow documented for bulk TCP. 7 reference scenarios including QoS comparison scenarios.
+
+**Buildroot pre-baked RPi image — 🛠️ in progress.** Goal: flash one SD card and the RPi boots straight into a syncbench agent (no `setup-linux.sh`, no `uv sync`, no `systemctl enable`). First bootable image is in [`rpi-image/`](rpi-image/); agent integration into the rootfs is the next milestone. Critical enabler for Phase 4 scale-out — onboarding 10+ STAs by hand isn't realistic.
 
 **Phase 4 — planned.** Scale to 10–50 endpoints. Broker tuning, scenario sharding, optional RF-isolation testbed integration.
 
