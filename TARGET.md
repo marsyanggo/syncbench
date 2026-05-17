@@ -1,6 +1,6 @@
 # Project Targets — syncbench
 
-_Last updated: 2026-05-14_
+_Last updated: 2026-05-16_
 
 ---
 
@@ -221,12 +221,15 @@ _Last updated: 2026-05-14_
 
 ### Step 2 — Image 進 repo
 
-- [ ] 把目前 image copy 到 `rpi-image/` 資料夾
-- [ ] `rpi-image/README.md`：image 版本 / 燒錄方式 / default credentials / 已知限制
+- [x] 把目前 image copy 到 `rpi-image/` 資料夾（LFS-tracked，v3 = 2026-05-16）
+- [x] `rpi-image/README.md`：image 版本 / 燒錄方式 / default credentials / 已知限制
 
 ### Step 3 — Buildroot config / overlay 整合 syncbench
 
-- [ ] Buildroot defconfig 收進 `rpi-image/configs/`（之後可重現 build）
+- [x] Kernel 客製化 workflow（fragment + `make savedefconfig`）跑通 — v3 baseline
+- [x] 觀測核心 baked-in（DWARF5/BTF, ftrace, hist triggers, uprobes, lock stat）→ eBPF CO-RE ready
+- [x] openssh + root login（`post-build.sh` patch `sshd_config`）— dev 用
+- [ ] Buildroot defconfig 收進 `rpi-image/configs/`（目前 build tree 在外面）
 - [ ] root filesystem overlay：預先放 `atf-agent` code（或 `uv sync` 過的環境）
 - [ ] 預裝相依：`iperf3`、Python runtime、`uv`（或 wheel-based 部署）
 - [ ] `atf-agent.service` 預設 enabled，開機自動跑

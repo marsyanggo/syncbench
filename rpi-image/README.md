@@ -1,6 +1,6 @@
 # rpi-image — Pre-baked Buildroot images for syncbench STA
 
-> 🛠️ **Status: early experiment.** First bootable Buildroot image landed (boots on real RPi). Syncbench agent + service are **not yet baked in** — that's the next milestone. See [Roadmap](#roadmap) below.
+> 🛠️ **Status: early experiment.** v3 image (2026-05-16) boots on real RPi 5 with an observability-enabled custom kernel + openssh login. Syncbench agent + service are **not yet baked in** — that's the next milestone. See [Roadmap](#roadmap) below.
 
 The goal of this folder is to ship a **single SD-card image** that, when flashed and powered on, joins the testbed as a syncbench STA without any manual `setup-linux.sh`, `uv sync`, or `systemctl enable` steps. Once complete, scaling the testbed past 10 endpoints stops being a per-device chore.
 
@@ -10,7 +10,7 @@ The goal of this folder is to ship a **single SD-card image** that, when flashed
 
 | File | Size | Notes |
 |---|---|---|
-| `pi5-buildroot.img` | 152 MB | First hand-built Buildroot image for Raspberry Pi 5. Bootable. **Does not yet include the syncbench agent.** |
+| `pi5-buildroot.img` | 152 MB | Hand-built Buildroot image for Raspberry Pi 5 (v3, 2026-05-16). Bootable, ssh-enabled, observability kernel. **Does not yet include the syncbench agent.** |
 
 Stored via **Git LFS** — see [`.gitattributes`](../.gitattributes) at the repo root. Cloning without LFS will leave a small text pointer in place of the image.
 
@@ -19,7 +19,7 @@ Stored via **Git LFS** — see [`.gitattributes`](../.gitattributes) at the repo
 - DOS/MBR partition table
 - Partition 1: FAT32 boot (~32 MB) — RPi firmware + kernel
 - Partition 2: ext4 rootfs (~120 MB) — Buildroot-generated
-- Tested on: Raspberry Pi 5
+- Tested on: Raspberry Pi 5 (BCM2712)
 
 ---
 
@@ -59,17 +59,43 @@ sudo eject /dev/sdX
 
 ## What's working / not working today
 
-✅ Boots on RPi 5
+✅ Boots on RPi 5 (BCM2712)
+✅ `eth0` auto-DHCP on boot — find the IP from your router or `arp -a`
+✅ openssh built in — `ssh root@<pi-ip>` works out of the box (see [Default credentials](#default-credentials))
+✅ Observability-enabled kernel — DWARF5 + BTF, ftrace (irqsoff / preempt), histogram triggers, user/uprobe events, lock stats → eBPF CO-RE ready
+✅ Full `vim` (with runtime) for on-box editing
 ❌ Syncbench agent not pre-installed
-❌ No first-boot config (hostname / Wi-Fi / agent_id all default)
+❌ Wi-Fi STA join not configured (eth0 only for now)
+❌ No first-boot config (hostname / agent_id all default)
 ❌ MQTT broker address not configurable from SD card
-❌ Default credentials, SSH access, and security posture not yet documented
 
-For a working STA today, use the existing flow on a stock Raspberry Pi OS image:
+For a working syncbench STA today, use the existing flow on a stock Raspberry Pi OS image:
 
 ```bash
 scripts/setup-linux.sh   # apt + Wi-Fi + uv + systemd
 ```
+
+### Default credentials
+
+| Field | Value |
+|---|---|
+| User | `root` |
+| Password | `pi5` (sha-512 hashed in `/etc/shadow`) |
+| SSH | enabled, `PermitRootLogin yes` (patched via `post-build.sh`) |
+
+⚠️ **These defaults are for lab-only use.** Change the password on first login (`passwd`) or rebuild the image with your own before deploying anywhere shared.
+
+### Kernel observability features
+
+| Feature | Why it's on |
+|---|---|
+| `CONFIG_DEBUG_INFO_DWARF5` + `CONFIG_DEBUG_INFO_BTF` | eBPF CO-RE foundation; `pahole` encodes DWARF → BTF so portable bpf programs work without per-kernel rebuilds |
+| `CONFIG_HIST_TRIGGERS` | In-kernel histograms over tracepoints / events (latency distributions without userspace post-processing) |
+| `CONFIG_USER_EVENTS` + `CONFIG_UPROBE_EVENTS` | User-space probes for app-level tracing |
+| `CONFIG_IRQSOFF_TRACER` + `CONFIG_PREEMPT_TRACER` | IRQ/preemption-off latency tracing — useful when chasing tail-latency on a soft-realtime STA |
+| `CONFIG_LOCK_STAT` | Lock contention stats (`/proc/lock_stat`) for kernel-side bottleneck diagnosis |
+
+These come from `board/raspberrypi/linux-observability.fragment` (21 lines), wired into the Buildroot defconfig as a kernel config fragment.
 
 ---
 
@@ -78,9 +104,12 @@ scripts/setup-linux.sh   # apt + Wi-Fi + uv + systemd
 Tracked under TARGET.md → "Goal: Buildroot 預燒 RPi Image".
 
 - [x] Step 1 — First bootable Buildroot image
-- [ ] Step 2 — Image lives in repo via LFS (this README, in progress)
-- [ ] Step 3 — Buildroot config + rootfs overlay integrating the agent:
-  - [ ] Buildroot defconfig committed to `rpi-image/configs/` (reproducible build)
+- [x] Step 2 — Image lives in repo via LFS (this README)
+- [~] Step 3 — Buildroot config + rootfs overlay integrating the agent (in progress, v3 is the kernel + ssh baseline):
+  - [x] Kernel customization workflow (fragment + `make savedefconfig` → defconfig persistence)
+  - [x] Observability kernel features baked in (see [Kernel observability features](#kernel-observability-features))
+  - [x] openssh + root login (`post-build.sh` patches `sshd_config`)
+  - [ ] Buildroot defconfig + overlay committed to `rpi-image/configs/` (currently lives outside the repo — needs to come in for reproducible build)
   - [ ] Rootfs overlay with `atf-agent` code (or pre-built wheels)
   - [ ] Pre-installed: `iperf3`, Python runtime, `uv` (or wheel-based deploy)
   - [ ] `atf-agent.service` enabled by default
